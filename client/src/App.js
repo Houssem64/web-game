@@ -52,7 +52,7 @@ function App() {
           
           {/* Room with furniture */}
           <Room />
-          <Table position={[0, 0.5, 0]} />
+          <Table position={[0, 0, 0]} />
           
           {/* Four chairs positioned around the table */}
           <Chair position={[0, 0, 1.25]} rotation={[0, Math.PI, 0]} isPlayerSeat={true} />
@@ -60,9 +60,18 @@ function App() {
           <Chair position={[1.25, 0, 0]} rotation={[0, Math.PI * 1.5, 0]} />
           <Chair position={[-1.25, 0, 0]} rotation={[0, Math.PI * 0.5, 0]} />
           
-          {/* Remote players */}
+          {/* Remote players - only render those with valid positions */}
           {Object.entries(players)
             .filter(([id]) => id !== currentPlayerId)
+            .filter(([_, player]) => {
+              // Only render players with valid positions and who are active
+              return player && 
+                typeof player.x === 'number' && 
+                typeof player.y === 'number' && 
+                typeof player.z === 'number' &&
+                // Filter out players at the default origin position (0,0,0)
+                !(player.x === 0 && player.y === 0 && player.z === 0);
+            })
             .map(([id, player]) => (
               <RemotePlayer
                 key={id}
