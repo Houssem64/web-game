@@ -10,9 +10,12 @@ const PLAYER_COLORS = {
 };
 
 const RemotePlayer = ({ position, rotation, playerNumber = 1, isHost = false }) => {
+  // Validate player number to ensure it's between 1 and 4
+  const validPlayerNumber = Math.max(1, Math.min(4, playerNumber));
+  
   // Determine player label and color
-  const playerLabel = `P${playerNumber}`;
-  const playerColor = PLAYER_COLORS[playerNumber] || PLAYER_COLORS[1]; // Default to host color if invalid
+  const playerLabel = `P${validPlayerNumber}`;
+  const playerColor = PLAYER_COLORS[validPlayerNumber] || PLAYER_COLORS[1]; // Default to host color if invalid
   
   return (
     <group position={position} rotation={rotation}>

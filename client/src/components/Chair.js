@@ -2,6 +2,7 @@ import React, { useRef, useEffect } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { Text } from '@react-three/drei';
 import * as THREE from 'three';
+import { useGameStore } from '../store/gameStore';
 
 // Player colors based on their player number
 const PLAYER_COLORS = {
@@ -20,59 +21,67 @@ const Chair = ({ position = [0, 0, 0], rotation = [0, 0, 0], isPlayerSeat = fals
   const backHeight = 0.7;
   const legWidth = 0.05;
   const chairRef = useRef();
-
+  
   // Get the camera and controls from the Three.js context
   const { camera } = useThree();
+  const currentPlayer = useGameStore(state => 
+    state.players?.[state.currentPlayerId] || null
+  );
   
   // Position player's camera for first-person view when seated
   useEffect(() => {
-    if (isPlayerSeat && chairRef.current) {
-      // Calculate the world position of the chair
-      const chairPosition = new THREE.Vector3();
-      chairRef.current.getWorldPosition(chairPosition);
-      
-      // Calculate the seated eye position (slightly above seat)
-      const eyeHeight = seatHeight + 0.6; // Eye level when seated
-      
-      // Position camera at eye level on the chair
-      camera.position.set(
-        position[0],
-        position[1] + eyeHeight,
-        position[2]
-      );
-      
-      // Important: We need to make sure the player is facing toward the table
-      // Based on which chair they're seated in
-      let lookAtTarget;
-      
-      // Calculate the look direction based on the chair position
-      // We want to invert the chair's looking direction to look at the table
-      if (Math.abs(position[0]) > Math.abs(position[2])) {
-        // We're on the left or right side of the table
-        lookAtTarget = new THREE.Vector3(0, position[1] + eyeHeight, 0);
-      } else {
-        // We're on the top or bottom side of the table
-        lookAtTarget = new THREE.Vector3(0, position[1] + eyeHeight, 0);
+    // Only adjust camera if:
+    // 1. This is the player's seat (isPlayerSeat is true)
+    // 2. The chair ref is available
+    // 3. We have the current player data with a valid chair index
+    if (isPlayerSeat && chairRef.current && currentPlayer) {
+      try {
+        console.log('Setting camera for player at chair index:', currentPlayer.chairIndex);
+        console.log('Current player data:', currentPlayer);
+        
+        // Calculate the seated eye position (slightly above seat)
+        const eyeHeight = seatHeight + 0.6; // Eye level when seated
+        
+        // Get the player's assigned chair position from the server
+        // This ensures we use the same position data the server assigned
+        if (currentPlayer.x !== undefined && 
+            currentPlayer.y !== undefined && 
+            currentPlayer.z !== undefined) {
+          
+          // Position camera based on player's assigned position from server
+          camera.position.set(
+            currentPlayer.x,
+            currentPlayer.y + eyeHeight,
+            currentPlayer.z
+          );
+          
+          // Create a look target at the center of the table
+          const lookAtTarget = new THREE.Vector3(0, camera.position.y, 0);
+          
+          // Make the camera look at the center of the table
+          camera.lookAt(lookAtTarget);
+          
+          // For a seated position, we need to offset the camera slightly forward
+          // to simulate someone sitting in the chair looking at the table
+          const towardTable = new THREE.Vector3()
+            .subVectors(lookAtTarget, camera.position)
+            .normalize()
+            .multiplyScalar(0.2);
+          
+          camera.position.add(towardTable);
+          
+          // Make sure the camera is looking at the table again after the position adjustment
+          camera.lookAt(lookAtTarget);
+          
+          console.log('Player camera positioned at:', camera.position);
+        } else {
+          console.warn('Current player missing position data:', currentPlayer);
+        }
+      } catch (err) {
+        console.error('Error positioning camera:', err);
       }
-      
-      // Make the camera look at the center of the table
-      camera.lookAt(lookAtTarget);
-      
-      // For a seated position, we need to offset the camera slightly forward
-      // to simulate someone sitting in the chair looking at the table
-      const towardTable = new THREE.Vector3()
-        .subVectors(lookAtTarget, camera.position)
-        .normalize()
-        .multiplyScalar(0.2);
-      
-      camera.position.add(towardTable);
-      
-      // Make sure the camera is looking at the table again after the position adjustment
-      camera.lookAt(lookAtTarget);
-      
-      console.log('Player seated in chair at position:', camera.position);
     }
-  }, [camera, isPlayerSeat, position, rotation, seatHeight]);
+  }, [camera, isPlayerSeat, currentPlayer, seatHeight]);
 
   // Only show player labels for occupied seats
   const playerLabel = occupied ? `P${playerNumber}` : "";

@@ -178,7 +178,10 @@ class GameRoom extends Room {
     
     // Set host status and player number
     player.isHost = isFirstPlayer;
-    player.playerNumber = this.state.nextPlayerNumber++;
+    
+    // Calculate player number based on chair index (P1-P4)
+    // This ensures consistent player numbers regardless of join order
+    player.playerNumber = chairIndex + 1;
     
     // If this is the first player, set them as the host
     if (isFirstPlayer) {
