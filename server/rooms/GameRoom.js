@@ -10,6 +10,8 @@ defineTypes(Player, {
   z: "number",
   rotationY: "number",
   chairIndex: "number", // Which chair the player is sitting in (0-3)
+  isHost: "boolean",   // Whether this player is the host
+  playerNumber: "number", // Player number (1, 2, 3, 4)
   connected: "boolean",
   lastActive: "number"
 });
@@ -22,6 +24,8 @@ class GameState extends Schema {
     this.roomId = Math.random().toString(36).substring(2, 8);
     this.roomName = ""; // Room name will be set from options
     this.createdAt = Date.now();
+    this.hostId = null;  // ID of the host player
+    this.nextPlayerNumber = 1; // Counter for assigning player numbers
     
     // Track which chairs are occupied (indexed 0-3)
     this.occupiedChairs = [false, false, false, false];
@@ -44,6 +48,8 @@ defineTypes(GameState, {
   roomId: "string",
   roomName: "string",
   createdAt: "number",
+  hostId: "string",
+  nextPlayerNumber: "number",
   occupiedChairs: "array"
 });
 
@@ -114,8 +120,12 @@ class GameRoom extends Room {
   onJoin(client, options) {
     console.log("Client joined:", client.sessionId);
     
+    // Determine if this is the first player (host)
+    const isFirstPlayer = this.state.hostId === null;
+    
     // Find an available chair for the player
-    const chairIndex = this.findAvailableChair();
+    // For the host, we always try to assign chair 0 (P1 position)
+    const chairIndex = isFirstPlayer ? 0 : this.findAvailableChair();
     
     // Create a new player for this client
     const player = new Player();
@@ -123,6 +133,16 @@ class GameRoom extends Room {
     player.connected = true;
     player.lastActive = Date.now();
     player.chairIndex = chairIndex;
+    
+    // Set host status and player number
+    player.isHost = isFirstPlayer;
+    player.playerNumber = this.state.nextPlayerNumber++;
+    
+    // If this is the first player, set them as the host
+    if (isFirstPlayer) {
+      this.state.hostId = client.sessionId;
+      console.log(`Player ${client.sessionId} is the host (P1)`);
+    }
     
     // Set player position and rotation based on their assigned chair
     if (chairIndex !== -1) {
@@ -134,14 +154,14 @@ class GameRoom extends Room {
       
       // Mark this chair as occupied
       this.state.occupiedChairs[chairIndex] = true;
-      console.log(`Player ${client.sessionId} assigned to chair ${chairIndex}`);
+      console.log(`Player ${client.sessionId} assigned to chair ${chairIndex} (P${player.playerNumber})`);
     } else {
       // No chairs available, place the player in a default position
       player.x = 0;
       player.y = 0;
       player.z = 0;
       player.rotationY = 0;
-      console.log(`No chairs available for player ${client.sessionId}`);
+      console.log(`No chairs available for player ${client.sessionId} (P${player.playerNumber})`);
     }
     
     // Add the player to the game state
@@ -169,6 +189,11 @@ class GameRoom extends Room {
         
         // Store chair index for potential cleanup later
         const chairIndex = player.chairIndex;
+        
+        // If host leaves, try to assign a new host
+        if (player.isHost && this.state.hostId === client.sessionId) {
+          this.assignNewHost();
+        }
         
         // Clear any existing timeout
         if (this.clientTimeouts[client.sessionId]) {
@@ -259,6 +284,24 @@ class GameRoom extends Room {
   // Refresh client timeout
   refreshClientTimeout(clientId) {
     this.setClientTimeout(clientId);
+  }
+  
+  // Assign a new host if the current host leaves
+  assignNewHost() {
+    // Find another connected player to be the new host
+    for (const [clientId, player] of this.state.players.entries()) {
+      if (player.connected && !player.isHost) {
+        // Mark this player as the new host
+        player.isHost = true;
+        this.state.hostId = clientId;
+        console.log(`Assigned player ${clientId} as the new host (P${player.playerNumber})`);
+        return;
+      }
+    }
+    
+    // If no other connected players, set hostId to null
+    this.state.hostId = null;
+    console.log('No players available to be host');
   }
   
   // Find an available chair for a new player

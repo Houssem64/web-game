@@ -3,7 +3,15 @@ import { useFrame, useThree } from '@react-three/fiber';
 import { Text } from '@react-three/drei';
 import * as THREE from 'three';
 
-const Chair = ({ position = [0, 0, 0], rotation = [0, 0, 0], isPlayerSeat = false, playerIndex = 0 }) => {
+// Player colors based on their player number
+const PLAYER_COLORS = {
+  1: "#1565C0", // Host - Blue
+  2: "#D32F2F", // Red
+  3: "#388E3C", // Green
+  4: "#FFA000"  // Orange
+};
+
+const Chair = ({ position = [0, 0, 0], rotation = [0, 0, 0], isPlayerSeat = false, playerNumber = 0, occupied = false }) => {
   // Chair dimensions
   const seatHeight = 0.45;
   const seatWidth = 0.5;
@@ -66,13 +74,14 @@ const Chair = ({ position = [0, 0, 0], rotation = [0, 0, 0], isPlayerSeat = fals
     }
   }, [camera, isPlayerSeat, position, rotation, seatHeight]);
 
-  // Determine player label based on index
-  const playerLabel = `P${playerIndex + 1}`;
+  // Only show player labels for occupied seats
+  const playerLabel = occupied ? `P${playerNumber}` : "";
+  const playerColor = playerNumber > 0 ? PLAYER_COLORS[playerNumber] || PLAYER_COLORS[1] : "#795548";
   
   return (
     <group ref={chairRef} position={position} rotation={rotation}>
-      {/* Player Label - only visible for non-player seats or third-person view */}
-      {!isPlayerSeat && (
+      {/* Player Label - only visible for occupied, non-player seats */}
+      {!isPlayerSeat && occupied && playerLabel && (
         <Text
           position={[0, seatHeight + backHeight + 0.3, 0]}
           color="white"
@@ -80,7 +89,7 @@ const Chair = ({ position = [0, 0, 0], rotation = [0, 0, 0], isPlayerSeat = fals
           font="https://fonts.gstatic.com/s/raleway/v14/1Ptrg8zYS_SKggPNwK4vaqI.woff"
           anchorX="center"
           anchorY="middle"
-          backgroundColor="#795548"
+          backgroundColor={playerColor}
           paddingTop={0.05}
           paddingBottom={0.05}
           paddingLeft={0.1}

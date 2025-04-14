@@ -158,19 +158,31 @@ export const useConnection = () => {
     
     // Handle player updates
     gameRoom.state.players.onAdd = (player, playerId) => {
-      console.log('Player added:', playerId);
+      console.log('Player added:', playerId, player);
       addPlayer(playerId, {
         x: player.x,
         y: player.y,
         z: player.z,
-        rotationY: player.rotationY
+        rotationY: player.rotationY,
+        playerNumber: player.playerNumber,
+        isHost: player.isHost,
+        chairIndex: player.chairIndex,
+        connected: player.connected
       });
       
       // Listen for changes to this player
       player.onChange = (changes) => {
+        // Log changes for debugging
+        console.log(`Player ${playerId} changed:`, changes);
+        
+        // Build a single update with all changed fields
+        const updates = {};
         changes.forEach(change => {
-          updatePlayer(playerId, { [change.field]: change.value });
+          updates[change.field] = change.value;
         });
+        
+        // Apply all updates at once
+        updatePlayer(playerId, updates);
       };
     };
     

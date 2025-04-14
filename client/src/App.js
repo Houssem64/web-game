@@ -15,6 +15,8 @@ function App() {
   const players = useGameStore((state) => state.players);
   const currentPlayerId = useGameStore((state) => state.currentPlayerId);
   const [showMenu, setShowMenu] = useState(true); // Start with menu visible
+  const [chairOccupancy, setChairOccupancy] = useState([false, false, false, false]);
+  const [chairPlayerNumbers, setChairPlayerNumbers] = useState([0, 0, 0, 0]);
   
   // We no longer auto-connect on mount - the menu handles connections now
   useEffect(() => {
@@ -28,6 +30,31 @@ function App() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
+  
+  // Track chair occupancy based on player positions
+  useEffect(() => {
+    if (!players) return;
+    
+    // Create a new occupancy array
+    const newOccupancy = [false, false, false, false];
+    const newPlayerNumbers = [0, 0, 0, 0];
+    
+    // Log player data for debugging
+    console.log('Current players:', players);
+    
+    // Check each player
+    Object.values(players).forEach(player => {
+      // Check if player has a valid chair index and is connected
+      if (player.chairIndex >= 0 && player.chairIndex < 4 && player.connected !== false) {
+        newOccupancy[player.chairIndex] = true;
+        newPlayerNumbers[player.chairIndex] = player.playerNumber || 0;
+        console.log(`Chair ${player.chairIndex} is occupied by player ${player.playerNumber}`);
+      }
+    });
+    
+    setChairOccupancy(newOccupancy);
+    setChairPlayerNumbers(newPlayerNumbers);
+  }, [players]);
 
   // Handle starting the game from the menu
   const handleStartGame = () => {
@@ -67,11 +94,32 @@ function App() {
           <Room />
           <Table position={[0, 0, 0]} />
           
-          {/* Four chairs positioned around the table with player indices */}
-          <Chair position={[0, 0, 1.25]} rotation={[0, Math.PI, 0]} isPlayerSeat={true} playerIndex={0} />
-          <Chair position={[0, 0, -1.25]} rotation={[0, 0, 0]} playerIndex={1} />
-          <Chair position={[1.25, 0, 0]} rotation={[0, Math.PI * 1.5, 0]} playerIndex={2} />
-          <Chair position={[-1.25, 0, 0]} rotation={[0, Math.PI * 0.5, 0]} playerIndex={3} />
+          {/* Four chairs positioned around the table with player info */}
+          <Chair 
+            position={[0, 0, 1.25]} 
+            rotation={[0, Math.PI, 0]} 
+            isPlayerSeat={true} 
+            playerNumber={chairPlayerNumbers[0]} 
+            occupied={chairOccupancy[0]} 
+          />
+          <Chair 
+            position={[0, 0, -1.25]} 
+            rotation={[0, 0, 0]} 
+            playerNumber={chairPlayerNumbers[1]} 
+            occupied={chairOccupancy[1]} 
+          />
+          <Chair 
+            position={[1.25, 0, 0]} 
+            rotation={[0, Math.PI * 1.5, 0]} 
+            playerNumber={chairPlayerNumbers[2]} 
+            occupied={chairOccupancy[2]} 
+          />
+          <Chair 
+            position={[-1.25, 0, 0]} 
+            rotation={[0, Math.PI * 0.5, 0]} 
+            playerNumber={chairPlayerNumbers[3]} 
+            occupied={chairOccupancy[3]} 
+          />
           
           {/* Remote players - only render those with valid positions */}
           {Object.entries(players)
@@ -82,15 +130,16 @@ function App() {
                 typeof player.x === 'number' && 
                 typeof player.y === 'number' && 
                 typeof player.z === 'number' &&
-                // Filter out players at the default origin position (0,0,0)
-                !(player.x === 0 && player.y === 0 && player.z === 0);
+                // Make sure player has a valid playerNumber
+                player.playerNumber > 0;
             })
-            .map(([id, player], index) => (
+            .map(([id, player]) => (
               <RemotePlayer
                 key={id}
                 position={[player.x, player.y, player.z]}
                 rotation={[0, player.rotationY, 0]}
-                playerIndex={index}
+                playerNumber={player.playerNumber}
+                isHost={player.isHost}
               />
             ))}
         </Suspense>
