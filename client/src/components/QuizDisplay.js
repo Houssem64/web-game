@@ -85,6 +85,9 @@ const QuizDisplay = ({ position = [0, 0, 0], rotation = [0, 0, 0] }) => {
           pointerEvents: 'auto',
           transform: 'scaleX(-1)'
         }}
+        onClick={(e) => e.stopPropagation()}
+        onPointerDown={(e) => e.stopPropagation()}
+        onPointerUp={(e) => e.stopPropagation()}
       >
         <QuizScreen />
       </Html>

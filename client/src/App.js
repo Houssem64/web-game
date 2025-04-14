@@ -11,6 +11,7 @@ import Chair from './components/Chair';
 import RemotePlayer from './components/RemotePlayer';
 import QuizDisplay from './components/QuizDisplay';
 import Crosshair from './components/Crosshair';
+import * as THREE from 'three';
 
 function App() {
   const { connectionState, connect, room } = useConnection();
@@ -32,6 +33,38 @@ function App() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
+  
+  // Add click handler for crosshair interaction
+  useEffect(() => {
+    if (showMenu) return; // Don't set up if in menu
+    
+    // Create raycaster for interaction
+    const raycaster = new THREE.Raycaster();
+    const center = new THREE.Vector2(0, 0); // Center of screen
+    
+    const handleClick = () => {
+      // Find and trigger mouse clicks on HTML elements at crosshair
+      const elements = document.elementsFromPoint(
+        window.innerWidth / 2,
+        window.innerHeight / 2
+      );
+      
+      // Find clickable elements
+      const clickable = elements.find(el => {
+        return el.tagName === 'BUTTON' || 
+               el.onclick || 
+               el.classList.contains('answer-button');
+      });
+      
+      if (clickable) {
+        clickable.click();
+        console.log('Clicked on element:', clickable);
+      }
+    };
+    
+    window.addEventListener('click', handleClick);
+    return () => window.removeEventListener('click', handleClick);
+  }, [showMenu]);
   
   // Track chair occupancy based on player positions
   useEffect(() => {

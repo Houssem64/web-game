@@ -5,16 +5,25 @@ import React from 'react';
  */
 const Crosshair = () => {
   return (
-    <div className="fixed inset-0 pointer-events-none flex items-center justify-center z-50">
+    <div style={{
+      position: 'fixed',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      pointerEvents: 'none',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      zIndex: 50
+    }}>
       {/* Simple white dot crosshair */}
-      <div className="w-1 h-1 bg-white rounded-full"></div>
-      
-      {/* Debug text container - initially hidden */}
-      <div 
-        id="crosshair-debug-text" 
-        className="absolute mt-8 text-white text-sm font-mono bg-black bg-opacity-75 px-2 py-1 rounded transition-opacity duration-200"
-        style={{ display: 'none' }}
-      ></div>
+      <div style={{
+        width: '1px',
+        height: '1px',
+        backgroundColor: 'white',
+        borderRadius: '50%'
+      }}></div>
     </div>
   );
 };

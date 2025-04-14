@@ -70,13 +70,22 @@ const AnswerButton = ({ letter, text, selected, disabled, onClick }) => {
     textOverflow: 'ellipsis'
   };
 
+  // Handle click with stopping propagation
+  const handleClick = (e) => {
+    if (disabled) return;
+    e.stopPropagation();
+    onClick();
+  };
+
   return (
     <button 
       style={buttonStyle}
-      onClick={onClick}
+      onClick={handleClick}
       disabled={disabled}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
+      className="answer-button"
+      data-answer={letter}
     >
       <div style={letterStyle}>{letter}</div>
       <div style={textStyle}>{text}</div>
