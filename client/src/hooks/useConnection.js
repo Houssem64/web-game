@@ -12,6 +12,7 @@ export const CONNECTION_STATE = {
 
 // Create a single client instance to be reused
 let clientInstance = null;
+let roomInstance = null;
 
 export const useConnection = () => {
   // State
@@ -32,6 +33,14 @@ export const useConnection = () => {
 
   // Connect to the Colyseus server
   const connect = useCallback(async () => {
+    // If we already have a room, don't create a new connection
+    if (roomInstance && roomInstance.connection.isOpen) {
+      console.log('Already connected to a room, reusing existing connection');
+      setRoom(roomInstance);
+      setConnectionState(CONNECTION_STATE.CONNECTED);
+      return roomInstance;
+    }
+    
     // Prevent multiple connection attempts
     if (hasConnected.current || connectionState === CONNECTION_STATE.CONNECTING) {
       return;
@@ -49,6 +58,9 @@ export const useConnection = () => {
       console.log('Attempting to join game room...');
       const gameRoom = await clientInstance.joinOrCreate('game_room');
       console.log('Successfully joined room with ID:', gameRoom.sessionId);
+      
+      // Store the room instance globally
+      roomInstance = gameRoom;
       
       setRoom(gameRoom);
       setConnectionState(CONNECTION_STATE.CONNECTED);
@@ -105,15 +117,29 @@ export const useConnection = () => {
     }
   }, [addPlayer, removePlayer, setCurrentPlayerId, updatePlayer, resetGame, connectionState]);
 
-  // Clean up function
+  // Clean up function - only leave room when the application is closed
   useEffect(() => {
-    return () => {
-      if (room) {
-        console.log('Component unmounting, leaving room');
-        room.leave();
+    // Reconnect if needed at startup
+    if (!hasConnected.current && connectionState === CONNECTION_STATE.DISCONNECTED) {
+      connect();
+    }
+    
+    // Add window beforeunload event to properly clean up
+    const handleBeforeUnload = () => {
+      if (roomInstance) {
+        console.log('Application closing, leaving room');
+        roomInstance.leave();
       }
     };
-  }, [room]);
+    
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      // Don't automatically leave the room when the component unmounts
+      // Only leave when the application is actually closing
+    };
+  }, [connect, connectionState]);
 
   return {
     client: clientInstance,

@@ -16,15 +16,15 @@ function App() {
   
   useEffect(() => {
     // Connect to the game server when the component mounts
-    connect();
+    // Only connect if we're not already connected
+    if (connectionState !== 'connected') {
+      console.log('Connecting to server from App component');
+      connect();
+    }
     
-    // Clean up connection when the component unmounts
-    return () => {
-      if (room) {
-        room.leave();
-      }
-    };
-  }, [connect, room]);
+    // Don't leave room when component unmounts
+    // Connection will be managed by the useConnection hook
+  }, [connect, connectionState]);
 
   return (
     <div style={{ height: '100vh', width: '100vw' }}>
