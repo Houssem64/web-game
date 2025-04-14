@@ -4,6 +4,7 @@ import { PerspectiveCamera, PointerLockControls, Environment, Stats } from '@rea
 import { useGameStore } from './store/gameStore';
 import { ConnectionStatus } from './components/UI/ConnectionStatus';
 import { useConnection } from './hooks/useConnection';
+import GameMenu from './components/UI/GameMenu';
 import Room from './components/Room';
 import Table from './components/Table';
 import Chair from './components/Chair';
@@ -13,26 +14,38 @@ function App() {
   const { connectionState, connect, room } = useConnection();
   const players = useGameStore((state) => state.players);
   const currentPlayerId = useGameStore((state) => state.currentPlayerId);
+  const [showMenu, setShowMenu] = useState(true); // Start with menu visible
   
+  // We no longer auto-connect on mount - the menu handles connections now
   useEffect(() => {
-    // Connect to the game server when the component mounts
-    // Only connect if we're not already connected
-    if (connectionState !== 'connected') {
-      console.log('Connecting to server from App component');
-      connect();
-    }
+    // Listen for keyboard events to toggle menu
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        setShowMenu(prev => !prev);
+      }
+    };
     
-    // Don't leave room when component unmounts
-    // Connection will be managed by the useConnection hook
-  }, [connect, connectionState]);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  // Handle starting the game from the menu
+  const handleStartGame = () => {
+    setShowMenu(false);
+  };
 
   return (
     <div style={{ height: '100vh', width: '100vw' }}>
-      {/* Connection status UI */}
-      <ConnectionStatus status={connectionState} />
-      
-      {/* Main 3D Canvas */}
-      <Canvas shadows>
+      {/* Show the game menu or the 3D game */}
+      {showMenu ? (
+        <GameMenu onStartGame={handleStartGame} />
+      ) : (
+        <>
+          {/* Connection status UI */}
+          <ConnectionStatus status={connectionState} />
+          
+          {/* Main 3D Canvas */}
+          <Canvas shadows>
         <Suspense fallback={null}>
           {/* First-person camera - position will be set by the Chair component */}
           <PerspectiveCamera makeDefault position={[0, 0, 5]} fov={70} near={0.1} far={1000} />
@@ -81,6 +94,11 @@ function App() {
             ))}
         </Suspense>
       </Canvas>
+          <div className="fixed bottom-4 right-4 text-white bg-gray-800 bg-opacity-75 p-2 rounded-lg">
+            Press <kbd className="px-2 py-1 bg-gray-700 rounded">ESC</kbd> to open menu
+          </div>
+        </>
+      )}
     </div>
   );
 }

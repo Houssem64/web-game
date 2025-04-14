@@ -37,9 +37,26 @@ gameServer.define('game_room', GameRoom, {
 // Attach the Colyseus monitor (available at /colyseus)
 app.use('/colyseus', monitor());
 
+// API endpoints
+
 // Serve a simple status page
 app.get('/', (req, res) => {
   res.send('3D Multiplayer Game Server is running');
+});
+
+// Get available rooms
+app.get('/rooms', (req, res) => {
+  const rooms = gameServer.matchMaker.rooms
+    .filter(room => room.roomName === 'game_room')
+    .map(room => ({
+      roomId: room.roomId,
+      name: room.state?.roomName || 'Unnamed Room',
+      clients: room.clients.length,
+      maxClients: room.maxClients,
+      createdAt: room.state?.createdAt || Date.now(),
+    }));
+  
+  res.json(rooms);
 });
 
 // Start the server

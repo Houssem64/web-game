@@ -19,11 +19,15 @@ class GameState extends Schema {
     super();
     this.players = new MapSchema();
     this.roomId = Math.random().toString(36).substring(2, 8);
+    this.roomName = ""; // Room name will be set from options
+    this.createdAt = Date.now();
   }
 }
 defineTypes(GameState, {
   players: { map: Player },
-  roomId: "string"
+  roomId: "string",
+  roomName: "string",
+  createdAt: "number"
 });
 
 // Track active rooms to prevent creating too many
@@ -39,9 +43,18 @@ class GameRoom extends Room {
     // Initialize the room state
     this.setState(new GameState());
     
+    // Set the room name if provided in options
+    if (options && options.roomName) {
+      this.state.roomName = options.roomName;
+      console.log(`Room name set to: ${options.roomName}`);
+    } else {
+      // Default name if none provided
+      this.state.roomName = `Game ${this.state.roomId}`;
+    }
+    
     // Register this room in active rooms map
     activeRooms.set(this.roomId, this);
-    console.log(`Room ${this.state.roomId} created. Total active rooms: ${activeRooms.size}`);
+    console.log(`Room ${this.state.roomId} created with name "${this.state.roomName}". Total active rooms: ${activeRooms.size}`);
     
     // Set a lower patch rate to reduce network traffic
     this.setPatchRate(100);
