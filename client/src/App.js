@@ -10,6 +10,7 @@ import Table from './components/Table';
 import Chair from './components/Chair';
 import RemotePlayer from './components/RemotePlayer';
 import QuizDisplay from './components/QuizDisplay';
+import Crosshair from './components/Crosshair';
 
 function App() {
   const { connectionState, connect, room } = useConnection();
@@ -74,6 +75,9 @@ function App() {
           {/* Connection status UI */}
           <ConnectionStatus status={connectionState} />
           
+          {/* Crosshair in the center of the screen when game is active */}
+          <Crosshair />
+          
           {/* Main 3D Canvas */}
           <Canvas shadows>
             <Suspense fallback={null}>
@@ -87,11 +91,22 @@ function App() {
               
               {/* Environment */}
               <Environment preset="apartment" background />
-              <ambientLight intensity={0.5} />
+              <ambientLight intensity={0.7} />
               <directionalLight
                 castShadow
                 position={[2, 4, 1]}
-                intensity={1}
+                intensity={1.2}
+                shadow-mapSize-width={1024}
+                shadow-mapSize-height={1024}
+              />
+              
+              {/* Additional spotlight to highlight the table area */}
+              <spotLight 
+                position={[0, 2.5, 0]} 
+                intensity={0.8} 
+                angle={0.6} 
+                penumbra={0.5} 
+                castShadow 
                 shadow-mapSize-width={1024}
                 shadow-mapSize-height={1024}
               />
@@ -139,7 +154,7 @@ function App() {
                       occupied={chairOccupancy[3]} 
                     />
                     
-                    {/* Tablets on the table for each player */}
+                    {/* Screen displays on the table for each player */}
                     {chairOccupancy[0] && (
                       <QuizDisplay 
                         position={[0, 0.81, 0.73]} 
@@ -164,6 +179,8 @@ function App() {
                         rotation={[0, Math.PI * 0.5, 0]} 
                       />
                     )}
+                    
+                    {/* Answer Buttons are now virtual and part of the QuizScreen UI */}
                   </>
                 );
               })()}

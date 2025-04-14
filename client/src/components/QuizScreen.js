@@ -3,6 +3,48 @@ import { useGameStore } from '../store/gameStore';
 import { useConnection } from '../hooks/useConnection';
 import AnswerButton from './UI/AnswerButton';
 
+// Add custom styles for the quiz screen
+const styles = {
+  quizScreen: {
+    width: '100%',
+    height: '100%',
+    display: 'flex',
+    flexDirection: 'column',
+    justifyContent: 'space-between',
+    padding: '12px',
+    fontFamily: 'Arial, sans-serif',
+    fontSize: '110%'
+  },
+  quizHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    marginBottom: '12px',
+    padding: '8px',
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    borderRadius: '4px'
+  },
+  questionContainer: {
+    padding: '12px',
+    backgroundColor: 'rgba(0, 0, 0, 0.2)',
+    borderRadius: '8px',
+    marginBottom: '15px',
+    fontSize: '120%',
+    fontWeight: 'bold'
+  },
+  answersContainer: {
+    display: 'grid',
+    gridTemplateColumns: '1fr 1fr',
+    gap: '12px',
+    marginBottom: '10px'
+  },
+  waitingMessage: {
+    textAlign: 'center',
+    marginTop: '10px',
+    color: '#ffcc00',
+    fontWeight: 'bold'
+  }
+};
+
 const QuizScreen = () => {
   const { room } = useConnection();
   const [timeLeft, setTimeLeft] = useState(0);
@@ -105,13 +147,25 @@ const QuizScreen = () => {
   // Render different game phases
   if (gamePhase === "waiting") {
     return (
-      <div className="quiz-screen waiting">
-        <h2>Waiting for the host to start the game...</h2>
+      <div className="quiz-screen waiting" style={styles.quizScreen}>
+        <h2 style={{ fontSize: '130%', textAlign: 'center', marginTop: '20px' }}>Waiting for the host to start the game...</h2>
         
         {/* Only show start button for the host */}
         {players[currentPlayerId]?.isHost && (
           <button 
             className="start-button"
+            style={{
+              padding: '12px 24px',
+              backgroundColor: '#4CAF50',
+              color: 'white',
+              border: 'none',
+              borderRadius: '8px',
+              cursor: 'pointer',
+              fontSize: '120%',
+              fontWeight: 'bold',
+              margin: '0 auto',
+              display: 'block'
+            }}
             onClick={() => room?.send("start_game")}
           >
             Start Game
@@ -123,7 +177,7 @@ const QuizScreen = () => {
 
   if (gamePhase === "quiz" && currentQuestion) {
     return (
-      <div className="quiz-screen active">
+      <div className="quiz-screen active" style={styles.quizScreen}>
         {/* Results overlay */}
         {resultsVisible && roundResults && (
           <div className="results-overlay">
@@ -163,18 +217,18 @@ const QuizScreen = () => {
         )}
         
         {/* Main quiz content */}
-        <div className="quiz-header">
+        <div className="quiz-header" style={styles.quizHeader}>
           <div className="round-info">
-            <span className="round-number">Round {currentRound}</span>
-            <span className="time-remaining">Time: {timeLeft}s</span>
+            <span className="round-number" style={{ fontWeight: 'bold' }}>Round {currentRound}</span>
+            <span className="time-remaining" style={{ marginLeft: '15px', color: timeLeft < 5 ? '#ff6666' : 'white' }}>Time: {timeLeft}s</span>
           </div>
         </div>
         
-        <div className="question-container">
+        <div className="question-container" style={styles.questionContainer}>
           <h2 className="question-text">{currentQuestion.question}</h2>
         </div>
         
-        <div className="answers-container">
+        <div className="answers-container" style={styles.answersContainer}>
           {currentQuestion.options.map((option, index) => (
             <AnswerButton
               key={index}
@@ -188,7 +242,7 @@ const QuizScreen = () => {
         </div>
         
         {answered && (
-          <div className="waiting-message">
+          <div className="waiting-message" style={styles.waitingMessage}>
             Waiting for other players...
           </div>
         )}

@@ -35,63 +35,65 @@ const QuizDisplay = ({ position = [0, 0, 0], rotation = [0, 0, 0] }) => {
     <group position={position} rotation={rotation} ref={ref}>
       {/* Tablet stand (small angled piece) */}
       <mesh position={[0, 0.025, 0.05]} rotation={[0, 0, 0]} castShadow receiveShadow>
-        <boxGeometry args={[0.1, 0.05, 0.1]} />
+        <boxGeometry args={[0.15, 0.05, 0.1]} />
         <meshStandardMaterial color="#333333" />
       </mesh>
       
       {/* Tablet body */}
-      <mesh position={[0, 0.075, 0]} rotation={[0.3, 0, 0]} castShadow receiveShadow ref={screenRef}>
-        <boxGeometry args={[0.4, 0.25, 0.02]} />
+      <mesh position={[0, 0.09, 0]} rotation={[0.3, 0, 0]} castShadow receiveShadow ref={screenRef}>
+        <boxGeometry args={[0.5, 0.32, 0.02]} />
         <meshStandardMaterial color="#111111" />
         
         {/* Tablet screen (slightly inset from the body) */}
         <mesh position={[0, 0, 0.005]} castShadow receiveShadow>
-          <boxGeometry args={[0.36, 0.21, 0.001]} />
-          <meshStandardMaterial color="#000000" emissive={screenGlowColor} emissiveIntensity={0.2} />
+          <boxGeometry args={[0.46, 0.28, 0.001]} />
+          <meshStandardMaterial color="#000000" emissive={screenGlowColor} emissiveIntensity={0.4} />
         </mesh>
         
         {/* Home button */}
-        <mesh position={[0, -0.105, 0.011]} castShadow receiveShadow>
+        <mesh position={[0, -0.135, 0.011]} castShadow receiveShadow>
           <cylinderGeometry args={[0.01, 0.01, 0.001, 16]} rotation={[Math.PI/2, 0, 0]} />
           <meshStandardMaterial color="#222222" />
         </mesh>
         
         {/* Camera */}
-        <mesh position={[0, 0.1, 0.011]} castShadow receiveShadow>
+        <mesh position={[0, 0.13, 0.011]} castShadow receiveShadow>
           <cylinderGeometry args={[0.004, 0.004, 0.001, 16]} rotation={[Math.PI/2, 0, 0]} />
           <meshStandardMaterial color="#333333" />
         </mesh>
       </mesh>
       
-      {/* Screen Content - separate from the tablet body to ensure proper rendering */}
+      {/* Screen Content */}
       <Html
         transform
         zIndexRange={[100, 0]}
-        position={[0, 0.09, 0.02]}
+        position={[0, 0.125, 0.03]}
         rotation={[0.3, 0, 0]}
-        distanceFactor={0.15}
+        distanceFactor={0.09}
         style={{
-          width: '500px',
-          height: '300px',
-          background: 'rgba(10, 10, 40, 0.95)',
-          border: '3px solid #222',
-          borderRadius: '8px',
+          width: '2300px',
+          height: '1000px',
+          background: 'rgba(10, 10, 40, 0.98)',
+          border: '4px solid rgba(120, 130, 240, 0.6)',
+          boxShadow: '0 0 20px rgba(100, 150, 255, 0.5)',
+          borderRadius: '10px',
           color: 'white',
-          padding: '10px',
+          padding: '20px',
           overflow: 'hidden',
           display: 'flex',
           flexDirection: 'column',
           pointerEvents: 'auto',
+          transform: 'scaleX(-1)'
         }}
       >
         <QuizScreen />
       </Html>
       
-      {/* Add a subtle glow effect around the tablet */}
+      {/* Add a stronger glow effect around the tablet */}
       <pointLight
-        position={[0, 0.1, 0.1]}
-        intensity={0.15}
-        distance={0.5}
+        position={[0, 0.1, 0.12]}
+        intensity={0.35}
+        distance={0.7}
         color={screenGlowColor}
       />
     </group>
