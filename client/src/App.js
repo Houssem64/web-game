@@ -67,11 +67,11 @@ function App() {
           <Room />
           <Table position={[0, 0, 0]} />
           
-          {/* Four chairs positioned around the table */}
-          <Chair position={[0, 0, 1.25]} rotation={[0, Math.PI, 0]} isPlayerSeat={true} />
-          <Chair position={[0, 0, -1.25]} rotation={[0, 0, 0]} />
-          <Chair position={[1.25, 0, 0]} rotation={[0, Math.PI * 1.5, 0]} />
-          <Chair position={[-1.25, 0, 0]} rotation={[0, Math.PI * 0.5, 0]} />
+          {/* Four chairs positioned around the table with player indices */}
+          <Chair position={[0, 0, 1.25]} rotation={[0, Math.PI, 0]} isPlayerSeat={true} playerIndex={0} />
+          <Chair position={[0, 0, -1.25]} rotation={[0, 0, 0]} playerIndex={1} />
+          <Chair position={[1.25, 0, 0]} rotation={[0, Math.PI * 1.5, 0]} playerIndex={2} />
+          <Chair position={[-1.25, 0, 0]} rotation={[0, Math.PI * 0.5, 0]} playerIndex={3} />
           
           {/* Remote players - only render those with valid positions */}
           {Object.entries(players)
@@ -85,11 +85,12 @@ function App() {
                 // Filter out players at the default origin position (0,0,0)
                 !(player.x === 0 && player.y === 0 && player.z === 0);
             })
-            .map(([id, player]) => (
+            .map(([id, player], index) => (
               <RemotePlayer
                 key={id}
                 position={[player.x, player.y, player.z]}
                 rotation={[0, player.rotationY, 0]}
+                playerIndex={index}
               />
             ))}
         </Suspense>

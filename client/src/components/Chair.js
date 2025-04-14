@@ -1,8 +1,9 @@
 import React, { useRef, useEffect } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
+import { Text } from '@react-three/drei';
 import * as THREE from 'three';
 
-const Chair = ({ position = [0, 0, 0], rotation = [0, 0, 0], isPlayerSeat = false }) => {
+const Chair = ({ position = [0, 0, 0], rotation = [0, 0, 0], isPlayerSeat = false, playerIndex = 0 }) => {
   // Chair dimensions
   const seatHeight = 0.45;
   const seatWidth = 0.5;
@@ -32,29 +33,64 @@ const Chair = ({ position = [0, 0, 0], rotation = [0, 0, 0], isPlayerSeat = fals
         position[2]
       );
       
-      // Calculate the rotation to look toward the table (away from the chair back)
-      const chairRotation = new THREE.Euler(
-        rotation[0],
-        rotation[1],
-        rotation[2],
-        'XYZ'
-      );
+      // Important: We need to make sure the player is facing toward the table
+      // Based on which chair they're seated in
+      let lookAtTarget;
       
-      // Apply rotation to camera
-      camera.rotation.copy(chairRotation);
+      // Calculate the look direction based on the chair position
+      // We want to invert the chair's looking direction to look at the table
+      if (Math.abs(position[0]) > Math.abs(position[2])) {
+        // We're on the left or right side of the table
+        lookAtTarget = new THREE.Vector3(0, position[1] + eyeHeight, 0);
+      } else {
+        // We're on the top or bottom side of the table
+        lookAtTarget = new THREE.Vector3(0, position[1] + eyeHeight, 0);
+      }
+      
+      // Make the camera look at the center of the table
+      camera.lookAt(lookAtTarget);
       
       // For a seated position, we need to offset the camera slightly forward
       // to simulate someone sitting in the chair looking at the table
-      const forward = new THREE.Vector3(0, 0, -0.2); // Move forward relative to chair orientation
-      forward.applyEuler(chairRotation);
-      camera.position.add(forward);
+      const towardTable = new THREE.Vector3()
+        .subVectors(lookAtTarget, camera.position)
+        .normalize()
+        .multiplyScalar(0.2);
+      
+      camera.position.add(towardTable);
+      
+      // Make sure the camera is looking at the table again after the position adjustment
+      camera.lookAt(lookAtTarget);
       
       console.log('Player seated in chair at position:', camera.position);
     }
   }, [camera, isPlayerSeat, position, rotation, seatHeight]);
 
+  // Determine player label based on index
+  const playerLabel = `P${playerIndex + 1}`;
+  
   return (
     <group ref={chairRef} position={position} rotation={rotation}>
+      {/* Player Label - only visible for non-player seats or third-person view */}
+      {!isPlayerSeat && (
+        <Text
+          position={[0, seatHeight + backHeight + 0.3, 0]}
+          color="white"
+          fontSize={0.3}
+          font="https://fonts.gstatic.com/s/raleway/v14/1Ptrg8zYS_SKggPNwK4vaqI.woff"
+          anchorX="center"
+          anchorY="middle"
+          backgroundColor="#795548"
+          paddingTop={0.05}
+          paddingBottom={0.05}
+          paddingLeft={0.1}
+          paddingRight={0.1}
+          borderRadius={0.1}
+        >
+          {playerLabel}
+        </Text>
+      )}
+      
       {/* Seat */}
       <mesh position={[0, seatHeight, 0]} castShadow receiveShadow>
         <boxGeometry args={[seatWidth, 0.05, seatDepth]} />

@@ -9,6 +9,7 @@ defineTypes(Player, {
   y: "number",
   z: "number",
   rotationY: "number",
+  chairIndex: "number", // Which chair the player is sitting in (0-3)
   connected: "boolean",
   lastActive: "number"
 });
@@ -21,13 +22,29 @@ class GameState extends Schema {
     this.roomId = Math.random().toString(36).substring(2, 8);
     this.roomName = ""; // Room name will be set from options
     this.createdAt = Date.now();
+    
+    // Track which chairs are occupied (indexed 0-3)
+    this.occupiedChairs = [false, false, false, false];
   }
 }
+
+// Chair positions and rotations around the table
+const CHAIR_POSITIONS = [
+  // P1 - facing the table from the bottom (Z+)
+  { position: [0, 0, 1.25], rotation: Math.PI },
+  // P2 - facing the table from the top (Z-)
+  { position: [0, 0, -1.25], rotation: 0 },
+  // P3 - facing the table from the right (X+)
+  { position: [1.25, 0, 0], rotation: Math.PI * 1.5 },
+  // P4 - facing the table from the left (X-)
+  { position: [-1.25, 0, 0], rotation: Math.PI * 0.5 }
+];
 defineTypes(GameState, {
   players: { map: Player },
   roomId: "string",
   roomName: "string",
-  createdAt: "number"
+  createdAt: "number",
+  occupiedChairs: "array"
 });
 
 // Track active rooms to prevent creating too many
@@ -97,15 +114,35 @@ class GameRoom extends Room {
   onJoin(client, options) {
     console.log("Client joined:", client.sessionId);
     
+    // Find an available chair for the player
+    const chairIndex = this.findAvailableChair();
+    
     // Create a new player for this client
     const player = new Player();
     player.id = client.sessionId;
-    player.x = 0;
-    player.y = 0;
-    player.z = 0;
-    player.rotationY = 0;
     player.connected = true;
     player.lastActive = Date.now();
+    player.chairIndex = chairIndex;
+    
+    // Set player position and rotation based on their assigned chair
+    if (chairIndex !== -1) {
+      const chairData = CHAIR_POSITIONS[chairIndex];
+      player.x = chairData.position[0];
+      player.y = chairData.position[1];
+      player.z = chairData.position[2];
+      player.rotationY = chairData.rotation;
+      
+      // Mark this chair as occupied
+      this.state.occupiedChairs[chairIndex] = true;
+      console.log(`Player ${client.sessionId} assigned to chair ${chairIndex}`);
+    } else {
+      // No chairs available, place the player in a default position
+      player.x = 0;
+      player.y = 0;
+      player.z = 0;
+      player.rotationY = 0;
+      console.log(`No chairs available for player ${client.sessionId}`);
+    }
     
     // Add the player to the game state
     this.state.players.set(client.sessionId, player);
@@ -129,42 +166,61 @@ class GameRoom extends Room {
       if (player) {
         player.connected = false;
         player.lastActive = Date.now();
-      }
-      
-      // Clear any existing timeout
-      if (this.clientTimeouts[client.sessionId]) {
-        clearTimeout(this.clientTimeouts[client.sessionId]);
-        delete this.clientTimeouts[client.sessionId];
-      }
-      
-      // Allow reconnection for shorter duration (10 seconds)
-      if (consented) {
-        // Player intentionally disconnected - remove immediately
-        console.log(`Client ${client.sessionId} intentionally disconnected`);
-        this.state.players.delete(client.sessionId);
-      } else {
-        // Player disconnected due to network issues, allow time to reconnect
-        console.log(`Client ${client.sessionId} disconnected. Waiting for reconnection...`);
-        try {
-          const reconnection = await this.allowReconnection(client, 10);
-          console.log(`Client ${client.sessionId} reconnected`);
-          
-          // Player is back - update the state
-          const player = this.state.players.get(client.sessionId);
-          if (player) {
-            player.connected = true;
-            player.lastActive = Date.now();
-            this.setClientTimeout(client.sessionId);
-          }
-        } catch (e) {
-          // Player didn't reconnect in time
-          console.log(`Client ${client.sessionId} didn't reconnect in time, removing player`);
+        
+        // Store chair index for potential cleanup later
+        const chairIndex = player.chairIndex;
+        
+        // Clear any existing timeout
+        if (this.clientTimeouts[client.sessionId]) {
+          clearTimeout(this.clientTimeouts[client.sessionId]);
+          delete this.clientTimeouts[client.sessionId];
+        }
+        
+        // Allow reconnection for shorter duration (10 seconds)
+        if (consented) {
+          // Player intentionally disconnected - remove immediately
+          console.log(`Client ${client.sessionId} intentionally disconnected`);
           this.state.players.delete(client.sessionId);
+          
+          // Free up their chair
+          if (chairIndex >= 0 && chairIndex < this.state.occupiedChairs.length) {
+            this.state.occupiedChairs[chairIndex] = false;
+            console.log(`Chair ${chairIndex} is now available`);
+          }
+        } else {
+          // Player disconnected due to network issues, allow time to reconnect
+          console.log(`Client ${client.sessionId} disconnected. Waiting for reconnection...`);
+          try {
+            const reconnection = await this.allowReconnection(client, 10);
+            console.log(`Client ${client.sessionId} reconnected`);
+            
+            // Player is back - update the state
+            const player = this.state.players.get(client.sessionId);
+            if (player) {
+              player.connected = true;
+              player.lastActive = Date.now();
+              this.setClientTimeout(client.sessionId);
+            }
+          } catch (e) {
+            // Player didn't reconnect in time
+            console.log(`Client ${client.sessionId} didn't reconnect in time, removing player`);
+            this.state.players.delete(client.sessionId);
+            
+            // Free up their chair
+            if (chairIndex >= 0 && chairIndex < this.state.occupiedChairs.length) {
+              this.state.occupiedChairs[chairIndex] = false;
+              console.log(`Chair ${chairIndex} is now available after failed reconnection`);
+            }
+          }
         }
       }
     } catch (e) {
       console.error(`Error in onLeave for ${client.sessionId}:`, e);
       // Make sure we clean up the player
+      const player = this.state.players.get(client.sessionId);
+      if (player && player.chairIndex >= 0) {
+        this.state.occupiedChairs[player.chairIndex] = false;
+      }
       this.state.players.delete(client.sessionId);
     }
   }
@@ -205,6 +261,38 @@ class GameRoom extends Room {
     this.setClientTimeout(clientId);
   }
   
+  // Find an available chair for a new player
+  findAvailableChair() {
+    // First, try to find a completely unoccupied chair
+    for (let i = 0; i < this.state.occupiedChairs.length; i++) {
+      if (!this.state.occupiedChairs[i]) {
+        return i;
+      }
+    }
+    
+    // If all chairs are marked as occupied, find one that doesn't have an active player
+    // This handles cases where a player might have disconnected without properly freeing the chair
+    const occupiedChairIndices = new Set();
+    for (const player of this.state.players.values()) {
+      if (player.connected && player.chairIndex >= 0) {
+        occupiedChairIndices.add(player.chairIndex);
+      }
+    }
+    
+    // Check if there's any chair not actively occupied
+    for (let i = 0; i < this.state.occupiedChairs.length; i++) {
+      if (!occupiedChairIndices.has(i)) {
+        // Mark it as available in our tracking array
+        this.state.occupiedChairs[i] = false;
+        return i;
+      }
+    }
+    
+    // No chair available - could return a random one or -1
+    // For now, we'll return -1, which will place the player in a default position
+    return -1;
+  }
+  
   // Clean up inactive clients
   cleanupInactiveClients() {
     const now = Date.now();
@@ -215,6 +303,14 @@ class GameRoom extends Room {
       if (!player.connected && (now - player.lastActive) > inactivityThreshold) {
         // Remove players that have been disconnected for more than 30 seconds
         console.log(`Cleaning up inactive client ${clientId}`);
+        
+        // Free up their chair
+        if (player.chairIndex >= 0 && player.chairIndex < this.state.occupiedChairs.length) {
+          this.state.occupiedChairs[player.chairIndex] = false;
+          console.log(`Chair ${player.chairIndex} is now available after cleanup`);
+        }
+        
+        // Remove from players list
         this.state.players.delete(clientId);
         
         // Clear any timeout
