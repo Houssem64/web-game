@@ -15,14 +15,16 @@ const Crosshair = () => {
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      zIndex: 50
+      zIndex: 9999 // Ensure it's always on top
     }}>
       {/* Simple white dot crosshair */}
       <div style={{
-        width: '1px',
-        height: '1px',
+        width: '3px',
+        height: '3px',
         backgroundColor: 'white',
-        borderRadius: '50%'
+        borderRadius: '50%',
+        boxShadow: '0 0 1px white', // Subtle glow effect
+        position: 'relative'  // Ensure it's in the stacking context
       }}></div>
     </div>
   );

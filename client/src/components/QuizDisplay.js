@@ -82,14 +82,16 @@ const QuizDisplay = ({ position = [0, 0, 0], rotation = [0, 0, 0] }) => {
           overflow: 'hidden',
           display: 'flex',
           flexDirection: 'column',
-          pointerEvents: 'auto',
+          pointerEvents: 'none',
           transform: 'scaleX(-1)'
         }}
         onClick={(e) => e.stopPropagation()}
         onPointerDown={(e) => e.stopPropagation()}
         onPointerUp={(e) => e.stopPropagation()}
       >
-        <QuizScreen />
+        <div style={{ pointerEvents: 'auto', width: '100%', height: '100%' }}>
+          <QuizScreen />
+        </div>
       </Html>
       
       {/* Add a stronger glow effect around the tablet */}
