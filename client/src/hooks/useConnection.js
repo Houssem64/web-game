@@ -237,8 +237,22 @@ export const useConnection = () => {
     });
     
     gameRoom.state.listen("currentQuestion", (newValue) => {
-      console.log("Current question changed:", newValue);
-      setCurrentQuestion(newValue);
+      console.log("Current question received from state:", newValue);
+      if (newValue) {
+        try {
+          // Ensure the question object has all required properties
+          const questionData = {
+            question: newValue.question || "Question not provided",
+            options: Array.isArray(newValue.options) ? newValue.options : ["Option A", "Option B", "Option C", "Option D"],
+            correctAnswer: typeof newValue.correctAnswer === 'number' ? newValue.correctAnswer : 0
+          };
+          
+          setCurrentQuestion(questionData);
+          console.log("Set current question in game store:", questionData);
+        } catch (error) {
+          console.error("Error processing question data:", error);
+        }
+      }
     });
     
     gameRoom.state.listen("timeRemaining", (newValue) => {
@@ -257,6 +271,38 @@ export const useConnection = () => {
       console.log('Game announcement received:', data);
       setAnnouncement(data.message, data.duration);
       setGamePhase("announcement");
+    });
+    
+    // Handle new questions
+    gameRoom.onMessage("new_question", (data) => {
+      console.log('New question message received:', data);
+      
+      if (data && data.question && data.options) {
+        const questionData = {
+          question: data.question,
+          options: data.options,
+          correctAnswer: data.correctAnswer || 0
+        };
+        
+        // Update game phase first to ensure UI updates
+        setGamePhase("quiz");
+        
+        // Then update the question
+        setCurrentQuestion(questionData);
+        console.log("Updated question from message:", questionData);
+      } else {
+        console.error("Invalid question data received:", data);
+        
+        // Fallback data if server sends malformed question
+        const fallbackQuestion = {
+          question: "Sample question - server data was invalid",
+          options: ["Option A", "Option B", "Option C", "Option D"],
+          correctAnswer: 0
+        };
+        
+        setCurrentQuestion(fallbackQuestion);
+        setGamePhase("quiz");
+      }
     });
     
     // Handle room events
