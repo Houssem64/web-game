@@ -123,9 +123,21 @@ class GameRoom extends Room {
     // Determine if this is the first player (host)
     const isFirstPlayer = this.state.hostId === null;
     
-    // Find an available chair for the player
-    // For the host, we always try to assign chair 0 (P1 position)
-    const chairIndex = isFirstPlayer ? 0 : this.findAvailableChair();
+    // For the host, ensure chair 0 is available and assign it
+    // For other players, find any available chair
+    let chairIndex;
+    if (isFirstPlayer) {
+      // Make sure chair 0 is not already occupied
+      if (!this.state.occupiedChairs[0]) {
+        chairIndex = 0;
+      } else {
+        // If somehow chair 0 is already taken, find another one
+        chairIndex = this.findAvailableChair();
+      }
+    } else {
+      // Find any available chair for non-host players
+      chairIndex = this.findAvailableChair();
+    }
     
     // Create a new player for this client
     const player = new Player();
@@ -144,6 +156,9 @@ class GameRoom extends Room {
       console.log(`Player ${client.sessionId} is the host (P1)`);
     }
     
+    // Log chair assignments for debug purposes
+    console.log(`Current chair occupancy before assignment: ${JSON.stringify(this.state.occupiedChairs)}`);
+    
     // Set player position and rotation based on their assigned chair
     if (chairIndex !== -1) {
       const chairData = CHAIR_POSITIONS[chairIndex];
@@ -157,12 +172,16 @@ class GameRoom extends Room {
       console.log(`Player ${client.sessionId} assigned to chair ${chairIndex} (P${player.playerNumber})`);
     } else {
       // No chairs available, place the player in a default position
-      player.x = 0;
+      // Try to find a position not on top of the table or other players
+      player.x = 3 * (Math.random() - 0.5); // Random position around the table
       player.y = 0;
-      player.z = 0;
-      player.rotationY = 0;
-      console.log(`No chairs available for player ${client.sessionId} (P${player.playerNumber})`);
+      player.z = 3 * (Math.random() - 0.5);
+      player.rotationY = Math.random() * Math.PI * 2; // Random rotation
+      console.log(`No chairs available for player ${client.sessionId} (P${player.playerNumber}). Using random position.`);
     }
+    
+    // Log final chair assignments
+    console.log(`Chair occupancy after assignment: ${JSON.stringify(this.state.occupiedChairs)}`);
     
     // Add the player to the game state
     this.state.players.set(client.sessionId, player);
@@ -306,34 +325,74 @@ class GameRoom extends Room {
   
   // Find an available chair for a new player
   findAvailableChair() {
-    // First, try to find a completely unoccupied chair
+    // Log current chair occupancy for debugging
+    console.log(`Finding available chair, current occupancy: ${JSON.stringify(this.state.occupiedChairs)}`);
+    
+    // First, verify the occupiedChairs array against actual player assignments
+    this.validateChairOccupancy();
+    
+    // Try to find a completely unoccupied chair
     for (let i = 0; i < this.state.occupiedChairs.length; i++) {
       if (!this.state.occupiedChairs[i]) {
+        console.log(`Found available chair at index ${i}`);
         return i;
       }
     }
     
-    // If all chairs are marked as occupied, find one that doesn't have an active player
-    // This handles cases where a player might have disconnected without properly freeing the chair
-    const occupiedChairIndices = new Set();
+    // If we reach here, all chairs are marked as occupied
+    // Maybe there are disconnected players we can replace
+    console.log("All chairs marked as occupied, checking for inactive players...");
+    
+    // Check which chairs are occupied by active players
+    const activelyOccupiedChairs = new Set();
     for (const player of this.state.players.values()) {
-      if (player.connected && player.chairIndex >= 0) {
-        occupiedChairIndices.add(player.chairIndex);
+      if (player.connected && player.chairIndex >= 0 && player.chairIndex < this.state.occupiedChairs.length) {
+        activelyOccupiedChairs.add(player.chairIndex);
+        console.log(`Chair ${player.chairIndex} is actively occupied by player ${player.id}`);
       }
     }
     
-    // Check if there's any chair not actively occupied
+    // Find a chair that's marked as occupied but doesn't actually have an active player
     for (let i = 0; i < this.state.occupiedChairs.length; i++) {
-      if (!occupiedChairIndices.has(i)) {
-        // Mark it as available in our tracking array
-        this.state.occupiedChairs[i] = false;
+      if (!activelyOccupiedChairs.has(i)) {
+        // This chair is not actually occupied by an active player
+        console.log(`Chair ${i} was marked as occupied but has no active player, making it available`);
+        this.state.occupiedChairs[i] = false; // Mark it as available
         return i;
       }
     }
     
-    // No chair available - could return a random one or -1
-    // For now, we'll return -1, which will place the player in a default position
-    return -1;
+    // Still no chair available
+    console.log("No available chairs found, returning -1");
+    return -1; // Will place the player in a random position
+  }
+  
+  // Validate and correct chair occupancy state
+  validateChairOccupancy() {
+    // Create a set of chairs that should actually be marked as occupied
+    const shouldBeOccupied = new Set();
+    
+    // Check all connected players to see which chairs they're occupying
+    for (const player of this.state.players.values()) {
+      if (player.connected && player.chairIndex >= 0 && player.chairIndex < this.state.occupiedChairs.length) {
+        shouldBeOccupied.add(player.chairIndex);
+      }
+    }
+    
+    // Update the occupiedChairs array to match reality
+    let fixedAny = false;
+    for (let i = 0; i < this.state.occupiedChairs.length; i++) {
+      const shouldBeMarkedOccupied = shouldBeOccupied.has(i);
+      if (this.state.occupiedChairs[i] !== shouldBeMarkedOccupied) {
+        console.log(`Fixing chair ${i} occupancy. Was: ${this.state.occupiedChairs[i]}, Should be: ${shouldBeMarkedOccupied}`);
+        this.state.occupiedChairs[i] = shouldBeMarkedOccupied;
+        fixedAny = true;
+      }
+    }
+    
+    if (fixedAny) {
+      console.log(`Updated chair occupancy state: ${JSON.stringify(this.state.occupiedChairs)}`);
+    }
   }
   
   // Clean up inactive clients

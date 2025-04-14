@@ -20,6 +20,7 @@ export const useConnection = () => {
   const [connectionState, setConnectionState] = useState(CONNECTION_STATE.DISCONNECTED);
   const [error, setError] = useState(null);
   const [availableRooms, setAvailableRooms] = useState([]);
+  const [isLoadingRooms, setIsLoadingRooms] = useState(false);
   const hasConnected = useRef(false);
   
   // Access the game store
@@ -48,17 +49,33 @@ export const useConnection = () => {
     }
   }, []);
 
-  // Get available rooms
+  // Get available rooms with detailed information
   const getAvailableRooms = useCallback(async () => {
     try {
+      setIsLoadingRooms(true);
       const client = await initializeConnection();
       const rooms = await client.getAvailableRooms('game_room');
-      setAvailableRooms(rooms);
-      return rooms;
+      
+      // Format room data for display with additional information
+      const formattedRooms = rooms.map(room => ({
+        roomId: room.roomId,
+        roomName: room.metadata?.roomName || 'Unnamed Room',
+        clients: room.clients || 0,  // Current player count
+        maxClients: 4,               // Max 4 players per room
+        createdAt: room.metadata?.createdAt || Date.now(),
+        locked: room.metadata?.locked || false
+      }));
+      
+      console.log('Available rooms:', formattedRooms);
+      setAvailableRooms(formattedRooms);
+      return formattedRooms;
     } catch (err) {
       console.error('Failed to get available rooms:', err);
       setError(err.message);
+      setAvailableRooms([]);
       throw err;
+    } finally {
+      setIsLoadingRooms(false);
     }
   }, [initializeConnection]);
 
@@ -238,6 +255,7 @@ export const useConnection = () => {
     error,
     connect,
     availableRooms,
+    isLoadingRooms,
     getAvailableRooms,
     createRoom,
     joinRoomById
