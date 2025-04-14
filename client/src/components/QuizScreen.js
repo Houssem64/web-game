@@ -131,33 +131,19 @@ const QuizScreen = () => {
   const setGamePhase = useGameStore(state => state.setGamePhase);
   const setAnnouncement = useGameStore(state => state.setAnnouncement);
   const setCurrentQuestion = useGameStore(state => state.setCurrentQuestion);
+  const submitAnswer = useGameStore(state => state.submitAnswer);
 
-  // Set up a counter for waiting phase
+  // Add state for player ready status
+  const [playerReadyStatus, setPlayerReadyStatus] = useState({});
+  const [allPlayersReady, setAllPlayersReady] = useState(false);
+
+  // Remove the automatic timer that transitions from waiting to quiz
+  // This should be driven by the server instead
   useEffect(() => {
-    // Only run countdown if we're in waiting phase
-    if (gamePhase === "waiting" && waitingCountdown > 0) {
-      console.log("Waiting countdown:", waitingCountdown);
-      
-      const timer = setTimeout(() => {
-        setWaitingCountdown(prev => prev - 1);
-      }, 1000);
-      
-      return () => clearTimeout(timer);
-    } else if (gamePhase === "waiting" && waitingCountdown === 0) {
-      // Once countdown reaches 0, transition to quiz phase
-      console.log("Waiting countdown finished, setting up quiz phase");
-      
-      // Create a sample question since we don't have an actual announcement phase yet
-      const sampleQuestion = {
-        question: "What is the capital of France?",
-        options: ["Berlin", "Paris", "London", "Madrid"],
-        correctAnswer: 1
-      };
-      
-      setCurrentQuestion(sampleQuestion);
-      setGamePhase("quiz");
+    if (gamePhase === "waiting") {
+      console.log("In waiting phase - waiting for server to transition to next phase");
     }
-  }, [gamePhase, waitingCountdown, setGamePhase, setCurrentQuestion]);
+  }, [gamePhase]);
   
   // Debug logging to diagnose issues
   useEffect(() => {
@@ -167,13 +153,60 @@ const QuizScreen = () => {
 
   // Update local time from server
   useEffect(() => {
-    setTimeLeft(timeRemaining);
+    if (timeRemaining !== undefined) {
+      setTimeLeft(timeRemaining);
+      console.log("Time remaining updated from server:", timeRemaining);
+    }
   }, [timeRemaining]);
 
   // Update local announcement time from store
   useEffect(() => {
-    setAnnouncementTime(announcementDuration);
+    if (announcementDuration !== undefined) {
+      setAnnouncementTime(announcementDuration);
+      console.log("Announcement duration updated:", announcementDuration);
+    }
   }, [announcementDuration]);
+
+  // Listen for all_players_ready message to update countdown
+  useEffect(() => {
+    if (!room) return;
+
+    const onAllPlayersReady = (data) => {
+      console.log("All players ready message received:", data);
+      // Could update UI to show players are ready to start
+      setWaitingCountdown(10); // Reset countdown when all players are ready
+    };
+
+    // Register listener
+    room.onMessage("all_players_ready", onAllPlayersReady);
+
+    // Cleanup
+    return () => {
+      room.removeAllListeners("all_players_ready");
+    };
+  }, [room]);
+
+  // Listen for ready status updates
+  useEffect(() => {
+    if (!room) return;
+
+    const onReadyStatusUpdate = (data) => {
+      console.log("Ready status update received:", data);
+      setPlayerReadyStatus(data);
+      
+      // Check if all players are ready
+      const allReady = Object.values(data).every(ready => ready === true);
+      setAllPlayersReady(allReady);
+    };
+
+    // Register listener
+    room.onMessage("ready_status_update", onReadyStatusUpdate);
+
+    // Cleanup
+    return () => {
+      room.removeAllListeners("ready_status_update");
+    };
+  }, [room]);
 
   // Setup room event listeners
   useEffect(() => {
@@ -186,18 +219,8 @@ const QuizScreen = () => {
       setAnnouncement(data.message, data.duration);
       setGamePhase("announcement");
       
-      // Start countdown for announcement
-      let timeLeft = data.duration;
-      const countdownInterval = setInterval(() => {
-        timeLeft--;
-        setAnnouncementTime(timeLeft);
-        
-        if (timeLeft <= 0) {
-          clearInterval(countdownInterval);
-        }
-      }, 1000);
-      
-      return () => clearInterval(countdownInterval);
+      // Server will control timing, so we don't need to start our own countdown here
+      setAnnouncementTime(data.duration);
     };
 
     // Listen for new questions
@@ -219,6 +242,9 @@ const QuizScreen = () => {
         };
         setCurrentQuestion(questionData);
         console.log("Updated current question:", questionData);
+        
+        // Set game phase to quiz
+        setGamePhase("quiz");
       }
     };
 
@@ -270,17 +296,60 @@ const QuizScreen = () => {
 
   // Handle answer selection
   const handleAnswer = (answerIndex) => {
-    if (answered || !room || gamePhase !== "quiz") return;
+    console.log("handleAnswer called with index:", answerIndex);
     
+    if (answered) {
+      console.log("Already answered, ignoring click");
+      return;
+    }
+    
+    if (!room) {
+      console.log("No room connection, cannot submit answer");
+      return;
+    }
+    
+    if (gamePhase !== "quiz") {
+      console.log("Not in quiz phase, ignoring answer");
+      return;
+    }
+    
+    console.log("Submitting answer:", answerIndex);
+    
+    // Set local UI state
     setSelectedAnswer(answerIndex);
     setAnswered(true);
     
+    // Record time taken from question start to answer
+    const timeSpent = Math.max(0, 20 - timeLeft);
+    
+    // Store answer in game store
+    submitAnswer(currentPlayerId, answerIndex, timeSpent);
+    
     // Send answer to server
-    room.send("submit_answer", { answer: answerIndex });
+    try {
+      room.send("submit_answer", { answer: answerIndex });
+      console.log("Answer sent to server successfully");
+    } catch (error) {
+      console.error("Error sending answer to server:", error);
+    }
   };
 
   // Create empty placeholder options for announcement phase
   const placeholderOptions = ["", "", "", ""];
+
+  // Allow player to mark themselves as ready
+  const toggleReadyStatus = () => {
+    if (!room) return;
+    
+    // Get current player's ready status and toggle it
+    const currentStatus = playerReadyStatus[currentPlayerId] || false;
+    const newStatus = !currentStatus;
+    
+    console.log(`Toggling ready status to: ${newStatus}`);
+    
+    // Send updated status to server
+    room.send("set_ready_status", { ready: newStatus });
+  };
 
   // Render different game phases
   if (gamePhase === "waiting") {
@@ -288,16 +357,78 @@ const QuizScreen = () => {
       <div className="quiz-screen waiting" style={styles.quizScreen}>
         <div style={styles.gameTitle}>WHO WANTS TO BE A MILLIONAIRE</div>
         
-        <h2 style={{ fontSize: '24px', textAlign: 'center', marginTop: '20px', color: '#8af' }}>
+        <h2 style={{ fontSize: '24px', textAlign: 'center', marginTop: '10px', color: '#8af' }}>
           Game will start soon
         </h2>
         
-        <div style={styles.countdownText}>
-          {waitingCountdown}
+        {/* Player ready status display */}
+        <div style={{ 
+          margin: '20px auto', 
+          padding: '15px', 
+          backgroundColor: 'rgba(20, 40, 100, 0.7)',
+          borderRadius: '8px',
+          maxWidth: '80%',
+          boxShadow: '0 0 10px rgba(0, 50, 200, 0.5)'
+        }}>
+          <h3 style={{ textAlign: 'center', color: '#ffcc33', marginBottom: '15px' }}>Players Ready</h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            {Object.entries(players).map(([playerId, player]) => (
+              <div key={playerId} style={{ 
+                display: 'flex', 
+                justifyContent: 'space-between',
+                padding: '8px',
+                backgroundColor: playerId === currentPlayerId ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
+                borderRadius: '4px'
+              }}>
+                <span style={{ color: 'white' }}>
+                  Player {player.playerNumber} {playerId === currentPlayerId ? '(You)' : ''}
+                  {player.isHost ? ' (Host)' : ''}
+                </span>
+                <span style={{ 
+                  color: playerReadyStatus[playerId] ? '#4caf50' : '#ff5a5a',
+                  fontWeight: 'bold'
+                }}>
+                  {playerReadyStatus[playerId] ? 'Ready ✓' : 'Not Ready'}
+                </span>
+              </div>
+            ))}
+          </div>
+          
+          {/* Ready button */}
+          <button 
+            onClick={toggleReadyStatus}
+            style={{
+              display: 'block',
+              margin: '20px auto 10px',
+              padding: '12px 24px',
+              backgroundColor: playerReadyStatus[currentPlayerId] ? '#2e7d32' : '#1976d2',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              fontSize: '16px',
+              fontWeight: 'bold',
+              cursor: 'pointer',
+              boxShadow: '0 2px 4px rgba(0, 0, 0, 0.3)',
+              transition: 'all 0.2s'
+            }}
+          >
+            {playerReadyStatus[currentPlayerId] ? 'I\'m Ready' : 'Mark as Ready'}
+          </button>
+          
+          {allPlayersReady && (
+            <p style={{ 
+              textAlign: 'center', 
+              color: '#ffcc33', 
+              marginTop: '15px',
+              fontWeight: 'bold'
+            }}>
+              All players are ready! Game starting soon...
+            </p>
+          )}
         </div>
         
         {/* Show sample answer buttons during waiting phase */}
-        <div className="answers-container" style={{...styles.answersContainer, marginTop: '60px'}}>
+        <div className="answers-container" style={{...styles.answersContainer, marginTop: '50px'}}>
           {["Berlin", "Paris", "London", "Madrid"].map((option, index) => (
             <AnswerButton
               key={index}
@@ -404,7 +535,13 @@ const QuizScreen = () => {
           <h2 className="question-text">{currentQuestion?.question || "Loading question..."}</h2>
         </div>
         
-        <div className="answers-container" style={styles.answersContainer}>
+        <div 
+          className="answers-container" 
+          style={{
+            ...styles.answersContainer,
+            pointerEvents: 'auto' // Ensure clicks are allowed
+          }}
+        >
           {(currentQuestion?.options || ["A", "B", "C", "D"]).map((option, index) => (
             <AnswerButton
               key={index}
@@ -412,7 +549,10 @@ const QuizScreen = () => {
               text={option || `Option ${index + 1}`}
               selected={selectedAnswer === index}
               disabled={answered}
-              onClick={() => handleAnswer(index)}
+              onClick={() => {
+                console.log(`Option ${index} clicked directly`);
+                handleAnswer(index);
+              }}
             />
           ))}
         </div>
@@ -428,7 +568,7 @@ const QuizScreen = () => {
 
   if (gamePhase === "elimination") {
     return (
-      <div className="quiz-screen elimination">
+      <div className="quiz-screen elimination" style={styles.quizScreen}>
         {eliminationVisible && eliminatedPlayer && (
           <div className="elimination-message">
             <h2>Player {eliminatedPlayer.playerNumber} has been eliminated!</h2>
@@ -461,7 +601,7 @@ const QuizScreen = () => {
 
   if (gamePhase === "finished") {
     return (
-      <div className="quiz-screen game-over">
+      <div className="quiz-screen game-over" style={styles.quizScreen}>
         {winner && !winner.tie && (
           <div className="winner-announcement">
             <h1>Game Over!</h1>

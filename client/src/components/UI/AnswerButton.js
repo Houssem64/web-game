@@ -26,11 +26,19 @@ const BUTTON_COLORS = {
 };
 
 const AnswerButton = ({ letter, text, selected, disabled, onClick }) => {
-  // Handle click with stopping propagation
-  const handleClick = (e) => {
-    if (disabled) return;
-    e.stopPropagation();
-    onClick();
+  // Handle click with simple logging
+  const handleClick = () => {
+    console.log(`AnswerButton ${letter} clicked`);
+    
+    if (disabled) {
+      console.log(`Button ${letter} is disabled, ignoring click`);
+      return;
+    }
+    
+    // Call the onClick handler directly
+    if (typeof onClick === 'function') {
+      onClick();
+    }
   };
 
   // Generate button styles
@@ -52,7 +60,8 @@ const AnswerButton = ({ letter, text, selected, disabled, onClick }) => {
       textShadow: '0 1px 2px rgba(0, 0, 0, 0.5)',
       boxShadow: '0 4px 6px rgba(0, 0, 0, 0.25)',
       opacity: disabled && !selected ? 0.8 : 1,
-      background: BUTTON_COLORS[letter]?.background || BUTTON_COLORS.A.background
+      background: BUTTON_COLORS[letter]?.background || BUTTON_COLORS.A.background,
+      pointerEvents: 'auto'
     };
 
     if (selected) {
@@ -80,23 +89,30 @@ const AnswerButton = ({ letter, text, selected, disabled, onClick }) => {
       justifyContent: 'center',
       marginRight: '14px',
       fontWeight: 'bold',
-      boxShadow: 'inset 0 0 5px rgba(0, 0, 0, 0.2)'
+      boxShadow: 'inset 0 0 5px rgba(0, 0, 0, 0.2)',
     };
   };
+
+  // Clean up debug logging
+  React.useEffect(() => {
+    console.log(`AnswerButton ${letter} rendered: ${selected ? 'selected' : 'not selected'}`);
+  }, [letter, selected]);
 
   return (
     <button 
       style={getButtonStyle()}
       onClick={handleClick}
-      disabled={disabled && !selected}
+      disabled={false}
       data-answer={letter}
+      className={`answer-button ${selected ? 'selected' : ''} ${disabled ? 'disabled' : ''}`}
+      type="button"
     >
       <div style={getLetterStyle()}>{letter}</div>
       <div style={{ 
         flex: 1, 
         textAlign: 'left', 
         overflow: 'hidden', 
-        textOverflow: 'ellipsis'
+        textOverflow: 'ellipsis',
       }}>
         {text}
       </div>

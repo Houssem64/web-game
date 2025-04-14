@@ -63,7 +63,7 @@ const QuizDisplay = ({ position = [0, 0, 0], rotation = [0, 0, 0] }) => {
         </mesh>
       </mesh>
       
-      {/* Screen Content */}
+      {/* Screen Content - Apply transform once at this level */}
       <Html
         transform
         zIndexRange={[100, 0]}
@@ -82,14 +82,28 @@ const QuizDisplay = ({ position = [0, 0, 0], rotation = [0, 0, 0] }) => {
           overflow: 'hidden',
           display: 'flex',
           flexDirection: 'column',
-          pointerEvents: 'none',
-          transform: 'scaleX(-1)'
+          pointerEvents: 'auto',
+         
         }}
-        onClick={(e) => e.stopPropagation()}
-        onPointerDown={(e) => e.stopPropagation()}
-        onPointerUp={(e) => e.stopPropagation()}
+        onClick={(e) => {
+          console.log("Html container clicked", e);
+        }}
+        onPointerDown={(e) => {
+          console.log("Pointer down on Html container", e);
+        }}
+        onPointerUp={(e) => {
+          console.log("Pointer up on Html container", e);
+        }}
       >
-        <div style={{ pointerEvents: 'auto', width: '100%', height: '100%' }}>
+        {/* Counter-flip the content so it appears correctly */}
+        <div style={{ 
+          pointerEvents: 'auto', 
+          width: '100%', 
+          height: '100%',
+          transform: 'scaleX(-1)', // Counter-flip the inner content
+          overflowY: 'auto',  // Allow scrolling if needed
+          overflowX: 'hidden'
+        }}>
           <QuizScreen />
         </div>
       </Html>

@@ -255,6 +255,9 @@ class GameRoom extends Room {
     this.onMessage("submit_answer", (client, data) => {
       // Only accept answers if a question is active
       if (this.gamePhase === "quiz" && this.roundInProgress) {
+        console.log(`Player ${client.sessionId} submitted answer: ${data.answer}`);
+        
+        // Calculate time taken since question started
         const timeTaken = Date.now() - this.questionStartTime;
         
         // Save the player's answer with timestamp
@@ -263,8 +266,12 @@ class GameRoom extends Room {
           timeTaken: timeTaken
         };
         
+        console.log(`Answer recorded with time: ${timeTaken}ms`);
+        
         // Check if all players have answered
         this.checkAllPlayersAnswered();
+      } else {
+        console.log(`Player ${client.sessionId} attempted to submit answer but round not active. Game phase: ${this.gamePhase}, Round in progress: ${this.roundInProgress}`);
       }
     });
     
@@ -286,8 +293,14 @@ class GameRoom extends Room {
           console.log("All players are ready! Game can start now.");
           this.broadcast("all_players_ready", { ready: true });
           
-          // If auto-start is enabled, the host could start the game automatically here
-          // For now, we'll just notify clients that everyone is ready
+          // Auto-start the game after a brief delay when all players are ready
+          if (player.isHost) {
+            this.clock.setTimeout(() => {
+              console.log("Auto-starting game since all players are ready and host is ready");
+              this.broadcast("game_started", { started: true });
+              this.startGame();
+            }, 3000); // 3 second delay before auto-start
+          }
         }
       }
     });
@@ -743,21 +756,31 @@ class GameRoom extends Room {
   }
   
   startCountdown() {
+    // Clear any existing interval to prevent duplicates
+    if (this.countdownInterval) {
+      this.clock.clearInterval(this.countdownInterval);
+    }
+    
     // Send time updates to clients every second
     let timeLeft = QUESTION_TIME;
+    this.state.timeRemaining = timeLeft;
     
-    const updateTime = () => {
+    this.countdownInterval = this.clock.setInterval(() => {
       if (timeLeft > 0 && this.roundInProgress) {
         timeLeft--;
         this.state.timeRemaining = timeLeft;
+        console.log(`Time remaining: ${timeLeft}s`);
         
-        // Schedule the next update
-        this.clock.setTimeout(updateTime, 1000);
+        // When time reaches 0, end the round
+        if (timeLeft === 0) {
+          this.clock.clearInterval(this.countdownInterval);
+          this.endRound();
+        }
+      } else {
+        // Clear the interval if round is no longer in progress
+        this.clock.clearInterval(this.countdownInterval);
       }
-    };
-    
-    // Start the countdown
-    updateTime();
+    }, 1000);
   }
   
   checkAllPlayersAnswered() {
@@ -769,10 +792,17 @@ class GameRoom extends Room {
     const allAnswered = activePlayers.every(id => this.playerAnswers[id] !== undefined);
     
     if (allAnswered) {
+      console.log("All players have answered - ending round early");
       // End the round early if everyone has answered
       if (this.questionTimer) {
         this.clock.clearTimeout(this.questionTimer);
       }
+      
+      // Also clear countdown interval
+      if (this.countdownInterval) {
+        this.clock.clearInterval(this.countdownInterval);
+      }
+      
       this.endRound();
     }
   }
@@ -780,7 +810,17 @@ class GameRoom extends Room {
   endRound() {
     if (!this.roundInProgress) return;
     
+    console.log("Ending round...");
     this.roundInProgress = false;
+    
+    // Clear any active timers
+    if (this.questionTimer) {
+      this.clock.clearTimeout(this.questionTimer);
+    }
+    
+    if (this.countdownInterval) {
+      this.clock.clearInterval(this.countdownInterval);
+    }
     
     // Calculate scores for this round
     const correctAnswer = this.currentQuestion.correctAnswer;
