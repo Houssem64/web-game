@@ -54,6 +54,8 @@
   cursor: pointer;
   border: none;
   transition: background-color 0.2s;
+  position: relative;
+  z-index: 200;
 }
 
 .menu-btn-blue {
@@ -241,7 +243,145 @@
   transition: all 0.1s ease-in-out !important;
 }
 
+/* Menu button crosshair interaction */
+.menu-btn.crosshair-hover {
+  outline: 2px solid white !important;
+  outline-offset: 2px;
+  filter: brightness(1.2);
+}
+
 /* Custom cursor styles when using the crosshair */
 .cursor-hidden {
   cursor: none;
+}
+
+/* Special styling for the start game button to make it more clickable */
+.menu-btn-green[data-button-type="start-game"] {
+  position: relative;
+  z-index: 250;
+  padding: 0.85rem 1.6rem;
+  font-size: 1.25rem;
+  box-shadow: 0 0 8px rgba(0, 0, 0, 0.5);
+}
+
+/* Ready Up System Styles */
+.ready-up-container {
+  margin-top: 1rem;
+  padding: 1rem;
+  background-color: rgba(0, 0, 0, 0.2);
+  border-radius: 0.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.ready-up-title {
+  font-size: 1.25rem;
+  color: white;
+  margin-bottom: 1rem;
+  text-align: center;
+  font-weight: bold;
+}
+
+.player-status-list {
+  margin-bottom: 1rem;
+}
+
+.player-status-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem;
+  border-radius: 0.25rem;
+  margin-bottom: 0.5rem;
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+.player-name {
+  font-weight: bold;
+  color: white;
+  display: flex;
+  align-items: center;
+}
+
+.player-status {
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.25rem;
+  font-size: 0.75rem;
+  font-weight: bold;
+}
+
+.status-not-ready {
+  background-color: #991b1b;
+  color: white;
+}
+
+.status-ready {
+  background-color: #065f46;
+  color: white;
+}
+
+.ready-button {
+  width: 100%;
+  padding: 0.9rem;
+  border: none;
+  border-radius: 0.5rem;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 1.2rem;
+  margin-top: 0.8rem;
+  outline: 2px solid rgba(255, 255, 255, 0.2);
+  position: relative;
+  z-index: 100;
+  background-color: #4f46e5;
+  color: white;
+}
+
+.ready-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  background-color: #4338ca;
+}
+
+.ready-button-ready {
+  background-color: #065f46;
+  color: white;
+}
+
+.ready-button-ready:hover {
+  background-color: #064e3b;
+}
+
+.ready-button-not-ready {
+  background-color: #4f46e5;
+  color: white;
+}
+
+.ready-button-not-ready:hover {
+  background-color: #4338ca;
+}
+
+.ready-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+/* Add back crosshair hover states for game mode */
+.cursor-hidden .ready-button.crosshair-hover {
+  outline: 3px solid white !important;
+  filter: brightness(1.2);
+  box-shadow: 0 0 15px rgba(255, 255, 255, 0.5) !important;
+}
+
+.ready-count {
+  text-align: center;
+  font-size: 0.9rem;
+  color: #d1d5db;
+  margin-top: 0.5rem;
+}
+
+.host-controls {
+  margin-top: 1rem;
+  text-align: center;
 } 

@@ -4,6 +4,7 @@ import { PerspectiveCamera, PointerLockControls, Environment, Stats } from '@rea
 import { useGameStore } from './store/gameStore';
 import { ConnectionStatus } from './components/UI/ConnectionStatus';
 import { useConnection } from './hooks/useConnection';
+import { useCrosshair } from './hooks/useCrosshair';
 import GameMenu from './components/UI/GameMenu';
 import Room from './components/Room';
 import Table from './components/Table';
@@ -22,6 +23,9 @@ function App() {
   const [chairOccupancy, setChairOccupancy] = useState([false, false, false, false]);
   const [chairPlayerNumbers, setChairPlayerNumbers] = useState([0, 0, 0, 0]);
   
+  // Set up crosshair interaction only in game mode
+  useCrosshair(!showMenu);
+  
   // We no longer auto-connect on mount - the menu handles connections now
   useEffect(() => {
     // Listen for keyboard events to toggle menu
@@ -34,75 +38,6 @@ function App() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
-  
-  // Add click handler for crosshair interaction
-  useEffect(() => {
-    if (showMenu) return; // Don't set up if in menu
-    
-    // Create raycaster for interaction
-    const raycaster = new THREE.Raycaster();
-    const center = new THREE.Vector2(0, 0); // Center of screen
-    
-    const handleClick = () => {
-      // Find and trigger mouse clicks on HTML elements at crosshair
-      const elements = document.elementsFromPoint(
-        window.innerWidth / 2,
-        window.innerHeight / 2
-      );
-      
-      // Find clickable elements
-      const clickable = elements.find(el => {
-        return el.tagName === 'BUTTON' || 
-               el.onclick || 
-               el.classList.contains('answer-button');
-      });
-      
-      if (clickable) {
-        clickable.click();
-        console.log('Clicked on element:', clickable);
-      }
-    };
-
-    // Create hover effect for crosshair
-    const handleHover = () => {
-      // Find elements at the center of the screen
-      const elements = document.elementsFromPoint(
-        window.innerWidth / 2,
-        window.innerHeight / 2
-      );
-      
-      // Remove any existing hover effects from all interactive elements
-      document.querySelectorAll('.crosshair-hover').forEach(el => {
-        el.classList.remove('crosshair-hover');
-      });
-      
-      // Find interactive elements
-      const interactive = elements.find(el => {
-        return el.tagName === 'BUTTON' || 
-               el.onclick || 
-               el.classList.contains('answer-button');
-      });
-      
-      // Apply hover effect
-      if (interactive) {
-        interactive.classList.add('crosshair-hover');
-      }
-    };
-
-    // Set up continuous hover checking
-    const hoverInterval = setInterval(handleHover, 100); // Check every 100ms
-    
-    window.addEventListener('click', handleClick);
-    
-    return () => {
-      window.removeEventListener('click', handleClick);
-      clearInterval(hoverInterval);
-      // Clean up any remaining hover effects
-      document.querySelectorAll('.crosshair-hover').forEach(el => {
-        el.classList.remove('crosshair-hover');
-      });
-    };
-  }, [showMenu]);
   
   // Track chair occupancy based on player positions
   useEffect(() => {
@@ -131,7 +66,7 @@ function App() {
     setChairPlayerNumbers(newPlayerNumbers);
   }, [players]);
 
-  // Add cursor hiding when the game is active
+  // Add cursor hiding when the game is active (not in menu)
   useEffect(() => {
     if (showMenu) {
       document.body.classList.remove('cursor-hidden');
@@ -149,8 +84,33 @@ function App() {
     setShowMenu(false);
   };
 
+  // Add event listener for Start Game button
+  useEffect(() => {
+    const startGameListener = (e) => {
+      // Check if we're clicking roughly in the center of the screen
+      const centerX = window.innerWidth / 2;
+      const centerY = window.innerHeight / 2;
+      
+      // If the click is close to center, find if there's a start-game button there
+      if (Math.abs(e.clientX - centerX) < 50 && Math.abs(e.clientY - centerY) < 50) {
+        const startButton = document.getElementById('start-game-button');
+        if (startButton) {
+          console.log('Direct start game button click detected');
+          startButton.click();
+          handleStartGame();
+        }
+      }
+    };
+    
+    window.addEventListener('click', startGameListener);
+    return () => window.removeEventListener('click', startGameListener);
+  }, []);
+
   return (
     <div className="app-container">
+      {/* Only show crosshair when game is active, not in menu */}
+      {!showMenu && <Crosshair />}
+      
       {/* Show the game menu or the 3D game */}
       {showMenu ? (
         <GameMenu onStartGame={handleStartGame} />
@@ -158,9 +118,6 @@ function App() {
         <>
           {/* Connection status UI */}
           <ConnectionStatus status={connectionState} />
-          
-          {/* Crosshair in the center of the screen when game is active */}
-          <Crosshair />
           
           {/* Main 3D Canvas */}
           <Canvas shadows>

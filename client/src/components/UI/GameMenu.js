@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useConnection } from '../../hooks/useConnection';
+import { useGameStore } from '../../store/gameStore';
 import './UI.css';
 
 const GameMenu = ({ onStartGame }) => {
@@ -9,7 +10,33 @@ const GameMenu = ({ onStartGame }) => {
   const [createdRoomId, setCreatedRoomId] = useState('');
   const [error, setError] = useState('');
   const [selectedRoom, setSelectedRoom] = useState(null);
-  const { createRoom, joinRoomById, getAvailableRooms, availableRooms, isLoadingRooms } = useConnection();
+  const [isReady, setIsReady] = useState(false);
+  const [playerReadyStatus, setPlayerReadyStatus] = useState({});
+  
+  const { createRoom, joinRoomById, getAvailableRooms, availableRooms, isLoadingRooms, room } = useConnection();
+  const players = useGameStore(state => state.players);
+  const currentPlayerId = useGameStore(state => state.currentPlayerId);
+  
+  // Get the current player and check if they're the host
+  const currentPlayer = players?.[currentPlayerId];
+  const isHost = currentPlayer?.isHost || false;
+  
+  // Calculate how many players are ready
+  const totalPlayers = Object.keys(players || {}).length;
+  
+  // Count ready players correctly by checking each player's individual ready status
+  const readyPlayers = Object.entries(players || {}).reduce((count, [playerId, player]) => {
+    // Check if this player is marked as ready in the ready status
+    const isPlayerReady = (
+      playerReadyStatus[playerId] === true || 
+      (player.playerNumber && playerReadyStatus[player.playerNumber] === true)
+    );
+    
+    return isPlayerReady ? count + 1 : count;
+  }, 0);
+  
+  // All players are ready only if there are multiple players and all of them are ready
+  const allPlayersReady = totalPlayers >= 2 && readyPlayers === totalPlayers;
   
   // Fetch available rooms when the browse menu is opened
   useEffect(() => {
@@ -17,6 +44,41 @@ const GameMenu = ({ onStartGame }) => {
       refreshRoomList();
     }
   }, [menuState]);
+  
+  // Handle ready status messages
+  useEffect(() => {
+    if (!room) return;
+    
+    // Listen for player ready status updates
+    const onReadyStatusUpdate = (data) => {
+      console.log("Received ready status update:", data);
+      
+      // Create a copy of the current player ready status
+      let updatedStatus = { ...playerReadyStatus };
+      
+      // Process the data object which contains player IDs or numbers as keys
+      if (data && typeof data === 'object') {
+        Object.entries(data).forEach(([key, value]) => {
+          updatedStatus[key] = value;
+        });
+        
+        setPlayerReadyStatus(updatedStatus);
+        console.log("Updated player ready status:", updatedStatus);
+      }
+    };
+    
+    // Register for ready status updates
+    room.onMessage("ready_status_update", onReadyStatusUpdate);
+    
+    // Send initial ready status when joining
+    room.send("set_ready_status", { ready: isReady });
+    
+    return () => {
+      if (room) {
+        room.removeAllListeners("ready_status_update");
+      }
+    };
+  }, [room, isReady]);
   
   // Function to refresh the room list
   const refreshRoomList = async () => {
@@ -53,7 +115,6 @@ const GameMenu = ({ onStartGame }) => {
       }
       
       await joinRoomById(roomId);
-      onStartGame();
     } catch (err) {
       setError(err.message || 'Failed to join room');
     }
@@ -75,14 +136,88 @@ const GameMenu = ({ onStartGame }) => {
       }
       
       await joinRoomById(selectedRoom.roomId);
-      onStartGame();
     } catch (err) {
       setError(err.message || 'Failed to join room');
     }
   };
 
+  const handleReadyToggle = () => {
+    // Toggle the ready state
+    const newReadyState = !isReady;
+    setIsReady(newReadyState);
+    
+    // Send ready status to the server
+    if (room) {
+      console.log(`Sending ready status to server: ${newReadyState}`);
+      room.send("set_ready_status", { ready: newReadyState });
+    } else {
+      console.error("Cannot send ready status - room is not connected");
+    }
+  };
+
   const handleStartGame = () => {
-    onStartGame();
+    if (isHost && allPlayersReady) {
+      // Notify all clients that the game is starting
+      if (room) {
+        room.send("start_game");
+      }
+      
+      onStartGame();
+    }
+  };
+
+  // Render player status list for the ready up screen
+  const renderPlayerStatusList = () => {
+    try {
+      if (!players || Object.keys(players || {}).length === 0) {
+        return <p style={{ color: '#d1d5db', textAlign: 'center' }}>No players connected</p>;
+      }
+      
+      console.log("Current players:", players);
+      console.log("Current ready status:", playerReadyStatus);
+      
+      return (
+        <div className="player-status-list">
+          {Object.entries(players).map(([playerId, player]) => {
+            if (!player) return null;
+            
+            // Check ready status by ID and player number
+            const isPlayerReady = (
+              playerReadyStatus[playerId] === true || 
+              (player.playerNumber && playerReadyStatus[player.playerNumber] === true)
+            );
+            
+            const isCurrentPlayer = playerId === currentPlayerId;
+            
+            return (
+              <div key={playerId} className="player-status-item">
+                <div className="player-name">
+                  Player {player.playerNumber || '?'} {isCurrentPlayer ? "(You)" : ""} {player.isHost ? "👑" : ""}
+                </div>
+                <div className={`player-status ${isPlayerReady ? 'status-ready' : 'status-not-ready'}`}>
+                  {isPlayerReady ? 'Ready' : 'Not Ready'}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      );
+    } catch (err) {
+      console.error("Error rendering player list:", err);
+      return <p style={{ color: '#d1d5db', textAlign: 'center' }}>Error loading player list</p>;
+    }
+  };
+
+  // Helper function to display a warning if not enough players
+  const displayPlayersReadyWarning = () => {
+    if (totalPlayers < 2) {
+      return (
+        <span style={{ color: '#f87171', display: 'block', marginTop: '4px', fontSize: '0.8em' }}>
+          Need at least 2 players to start
+        </span>
+      );
+    }
+    return null;
   };
 
   return (
@@ -177,12 +312,56 @@ const GameMenu = ({ onStartGame }) => {
                 </button>
               </div>
             </div>
-            <button 
-              onClick={handleStartGame}
-              className="menu-btn menu-btn-green"
-            >
-              Start Game
-            </button>
+            
+            {/* Ready Up System */}
+            <div className="ready-up-container">
+              <div className="ready-up-title">Players Ready Status</div>
+              
+              {renderPlayerStatusList()}
+              
+              <button 
+                id="ready-up-button"
+                onClick={handleReadyToggle}
+                className={`ready-button ${isReady ? 'ready-button-ready' : 'ready-button-not-ready'}`}
+              >
+                {isReady ? 'I\'m Ready!' : 'Ready Up'}
+              </button>
+              
+              <div className="ready-count">
+                {readyPlayers} of {totalPlayers} players ready
+                {displayPlayersReadyWarning()}
+              </div>
+              
+              {/* Debug info - can be removed in production */}
+              <div style={{ fontSize: '10px', color: '#999', marginTop: '8px', borderTop: '1px solid #555', paddingTop: '8px' }}>
+                <details>
+                  <summary>Debug Info</summary>
+                  <pre style={{ overflow: 'auto', maxHeight: '100px' }}>
+                    {JSON.stringify({
+                      readyStatus: playerReadyStatus,
+                      currentPlayer: currentPlayerId,
+                      isReady: isReady
+                    }, null, 2)}
+                  </pre>
+                </details>
+              </div>
+              
+              {isHost && (
+                <div className="host-controls">
+                  <button 
+                    onClick={handleStartGame}
+                    disabled={!allPlayersReady}
+                    className="menu-btn menu-btn-green"
+                    style={{ 
+                      marginTop: '1rem',
+                      opacity: allPlayersReady ? 1 : 0.5
+                    }}
+                  >
+                    {allPlayersReady ? 'Start Game' : 'Waiting for all players...'}
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         )}
 
@@ -217,6 +396,58 @@ const GameMenu = ({ onStartGame }) => {
                 Join Room
               </button>
             </div>
+            
+            {/* Ready Up System (appears after joining) */}
+            {room && (
+              <div className="ready-up-container">
+                <div className="ready-up-title">Players Ready Status</div>
+                
+                {renderPlayerStatusList()}
+                
+                <button 
+                  id="ready-up-button"
+                  onClick={handleReadyToggle}
+                  className={`ready-button ${isReady ? 'ready-button-ready' : 'ready-button-not-ready'}`}
+                >
+                  {isReady ? 'I\'m Ready!' : 'Ready Up'}
+                </button>
+                
+                <div className="ready-count">
+                  {readyPlayers} of {totalPlayers} players ready
+                  {displayPlayersReadyWarning()}
+                </div>
+                
+                {/* Debug info - can be removed in production */}
+                <div style={{ fontSize: '10px', color: '#999', marginTop: '8px', borderTop: '1px solid #555', paddingTop: '8px' }}>
+                  <details>
+                    <summary>Debug Info</summary>
+                    <pre style={{ overflow: 'auto', maxHeight: '100px' }}>
+                      {JSON.stringify({
+                        readyStatus: playerReadyStatus,
+                        currentPlayer: currentPlayerId,
+                        isReady: isReady
+                      }, null, 2)}
+                    </pre>
+                  </details>
+                </div>
+                
+                {isHost && (
+                  <div className="host-controls">
+                    <button 
+                      onClick={handleStartGame}
+                      disabled={!allPlayersReady}
+                      className="menu-btn menu-btn-green"
+                      style={{ 
+                        marginTop: '1rem',
+                        opacity: allPlayersReady ? 1 : 0.5
+                      }}
+                    >
+                      {allPlayersReady ? 'Start Game' : 'Waiting for all players...'}
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
 
@@ -250,7 +481,9 @@ const GameMenu = ({ onStartGame }) => {
                           cursor: 'pointer'
                         }}
                       >
-                        <p style={{ margin: 0, fontWeight: 'bold', color: 'white' }}>{room.metadata.name}</p>
+                        <p style={{ margin: 0, fontWeight: 'bold', color: 'white' }}>
+                          {room.metadata?.name || room.metadata?.roomName || `Room ${room.roomId}`}
+                        </p>
                         <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.75rem', color: '#d1d5db' }}>
                           Players: {room.clients}/{room.maxClients}
                         </p>
@@ -283,6 +516,58 @@ const GameMenu = ({ onStartGame }) => {
                 Join Selected
               </button>
             </div>
+            
+            {/* Ready Up System (appears after joining) */}
+            {room && (
+              <div className="ready-up-container">
+                <div className="ready-up-title">Players Ready Status</div>
+                
+                {renderPlayerStatusList()}
+                
+                <button 
+                  id="ready-up-button"
+                  onClick={handleReadyToggle}
+                  className={`ready-button ${isReady ? 'ready-button-ready' : 'ready-button-not-ready'}`}
+                >
+                  {isReady ? 'I\'m Ready!' : 'Ready Up'}
+                </button>
+                
+                <div className="ready-count">
+                  {readyPlayers} of {totalPlayers} players ready
+                  {displayPlayersReadyWarning()}
+                </div>
+                
+                {/* Debug info - can be removed in production */}
+                <div style={{ fontSize: '10px', color: '#999', marginTop: '8px', borderTop: '1px solid #555', paddingTop: '8px' }}>
+                  <details>
+                    <summary>Debug Info</summary>
+                    <pre style={{ overflow: 'auto', maxHeight: '100px' }}>
+                      {JSON.stringify({
+                        readyStatus: playerReadyStatus,
+                        currentPlayer: currentPlayerId,
+                        isReady: isReady
+                      }, null, 2)}
+                    </pre>
+                  </details>
+                </div>
+                
+                {isHost && (
+                  <div className="host-controls">
+                    <button 
+                      onClick={handleStartGame}
+                      disabled={!allPlayersReady}
+                      className="menu-btn menu-btn-green"
+                      style={{ 
+                        marginTop: '1rem',
+                        opacity: allPlayersReady ? 1 : 0.5
+                      }}
+                    >
+                      {allPlayersReady ? 'Start Game' : 'Waiting for all players...'}
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
       </div>

@@ -2,7 +2,24 @@ const { Room } = require('colyseus');
 const { Schema, MapSchema, ArraySchema, defineTypes } = require('@colyseus/schema');
 
 // Define the Player schema for network synchronization
-class Player extends Schema {}
+class Player extends Schema {
+  constructor() {
+    super();
+    this.id = "";
+    this.x = 0;
+    this.y = 0;
+    this.z = 0;
+    this.rotationY = 0;
+    this.chairIndex = -1;
+    this.isHost = false;
+    this.playerNumber = 0;
+    this.connected = true;
+    this.lastActive = Date.now();
+    this.isReady = false;
+    this.username = "";
+    this.score = 0;
+  }
+}
 defineTypes(Player, {
   id: "string",
   x: "number",
@@ -13,7 +30,10 @@ defineTypes(Player, {
   isHost: "boolean",   // Whether this player is the host
   playerNumber: "number", // Player number (1, 2, 3, 4)
   connected: "boolean",
-  lastActive: "number"
+  lastActive: "number",
+  isReady: "boolean", // Whether the player is ready to start the game
+  username: "string",
+  score: "number"
 });
 
 // Define the game state schema
@@ -134,6 +154,7 @@ class GameRoom extends Room {
   eliminatedPlayers = [];
   questionTimer = null;
   usedQuestions = [];
+  playerReadyStatus = {}; // Track players' ready status
   
   onCreate(options) {
     console.log("Game room created!", options);
@@ -149,6 +170,7 @@ class GameRoom extends Room {
     
     // This is crucial: set metadata for room listings
     this.setMetadata({
+      name: roomName,
       roomName: roomName,
       createdAt: Date.now(),
       maxPlayers: 4,
@@ -237,6 +259,30 @@ class GameRoom extends Room {
         
         // Check if all players have answered
         this.checkAllPlayersAnswered();
+      }
+    });
+    
+    // Handle player ready status updates
+    this.onMessage("set_ready_status", (client, data) => {
+      const player = this.state.players.get(client.sessionId);
+      if (player) {
+        // Update player's ready status
+        player.isReady = !!data.ready;
+        this.playerReadyStatus[client.sessionId] = !!data.ready;
+        
+        // Broadcast updated ready status to all clients
+        this.broadcastReadyStatus();
+        
+        console.log(`Player ${player.playerNumber} (${client.sessionId}) is now ${player.isReady ? 'ready' : 'not ready'}`);
+        
+        // Check if all players are ready to start the game
+        if (this.areAllPlayersReady() && this.gamePhase === "waiting") {
+          console.log("All players are ready! Game can start now.");
+          this.broadcast("all_players_ready", { ready: true });
+          
+          // If auto-start is enabled, the host could start the game automatically here
+          // For now, we'll just notify clients that everyone is ready
+        }
       }
     });
   }
@@ -332,6 +378,13 @@ class GameRoom extends Room {
     
     // Add the player to the game state
     this.state.players.set(client.sessionId, player);
+    
+    // Explicitly initialize player ready status 
+    player.isReady = false;
+    this.playerReadyStatus[client.sessionId] = false;
+    
+    // Broadcast updated ready status
+    this.broadcastReadyStatus();
     
     // Set timeout to mark player as inactive if no activity
     this.setClientTimeout(client.sessionId);
@@ -874,6 +927,74 @@ class GameRoom extends Room {
     // Return array of player IDs who haven't been eliminated
     return Array.from(this.state.players.keys())
       .filter(id => !this.eliminatedPlayers.includes(id));
+  }
+  
+  broadcastScoreboard() {
+    // Create scoreboard data
+    const scoreboard = [];
+    this.state.players.forEach((player, sessionId) => {
+      scoreboard.push({
+        playerNumber: player.playerNumber,
+        username: player.username,
+        score: player.score,
+      });
+    });
+    
+    // Sort by score (descending)
+    scoreboard.sort((a, b) => b.score - a.score);
+    
+    // Broadcast to all clients
+    this.broadcast("scoreboard_update", { scoreboard });
+  }
+  
+  // Broadcast ready status of all players to all clients
+  broadcastReadyStatus() {
+    // Create a clean object to store ready status
+    const readyStatus = {};
+    
+    // Iterate through all players and record their ready status
+    this.state.players.forEach((player, sessionId) => {
+      if (player) {
+        // Store by session ID
+        readyStatus[sessionId] = !!player.isReady;
+        
+        // Also store by player number for easier client-side handling
+        if (typeof player.playerNumber === 'number') {
+          readyStatus[player.playerNumber] = !!player.isReady;
+        }
+      }
+    });
+    
+    // Keep track of ready status locally for reference
+    this.playerReadyStatus = { ...readyStatus };
+    
+    // Debug log
+    console.log("Broadcasting ready status:", readyStatus);
+    
+    // Broadcast to all connected clients
+    this.broadcast("ready_status_update", readyStatus);
+  }
+  
+  // Check if all players are ready
+  areAllPlayersReady() {
+    let readyCount = 0;
+    let totalCount = 0;
+    
+    this.state.players.forEach((player) => {
+      // Only count connected players
+      if (player.connected) {
+        totalCount++;
+        
+        if (player.isReady) {
+          readyCount++;
+        }
+      }
+    });
+    
+    console.log(`Ready check: ${readyCount}/${totalCount} players ready`);
+    
+    // Make sure we have at least 2 players and all are ready
+    return totalCount >= 2 && readyCount === totalCount;
   }
 }
 
