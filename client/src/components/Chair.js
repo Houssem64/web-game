@@ -12,7 +12,7 @@ const PLAYER_COLORS = {
   4: "#FFA000"  // Orange
 };
 
-const Chair = ({ position = [0, 0, 0], rotation = [0, 0, 0], isPlayerSeat = false, playerNumber = 0, occupied = false }) => {
+const Chair = ({ position = [0, 0, 0], rotation = [0, 0, 0], isPlayerSeat = false, playerNumber = 0, occupied = false, children }) => {
   // Chair dimensions
   const seatHeight = 0.45;
   const seatWidth = 0.5;
@@ -145,6 +145,9 @@ const Chair = ({ position = [0, 0, 0], rotation = [0, 0, 0], isPlayerSeat = fals
         <boxGeometry args={[legWidth, legHeight, legWidth]} />
         <meshStandardMaterial color="#5D4037" />
       </mesh>
+      
+      {/* Render child components (like QuizDisplay) */}
+      {children}
     </group>
   );
 };

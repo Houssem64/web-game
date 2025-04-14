@@ -7,6 +7,16 @@ export const useGameStore = create((set) => ({
   
   // Game state
   gameStarted: false,
+  gamePhase: 'waiting', // waiting, quiz, elimination, finished
+  currentRound: 0,
+  totalRounds: 5,
+  
+  // Quiz state
+  currentQuestion: null,
+  timeRemaining: 0,
+  answers: {}, // Map of player IDs to their answers
+  scores: {}, // Map of player IDs to their scores
+  eliminatedPlayers: [], // Array of player IDs that have been eliminated
   
   // Actions
   setPlayers: (players) => set({ players }),
@@ -33,10 +43,59 @@ export const useGameStore = create((set) => ({
   setCurrentPlayerId: (id) => set({ currentPlayerId: id }),
   setGameStarted: (started) => set({ gameStarted: started }),
   
-  // Reset the game state
+  // Quiz game actions
+  setGamePhase: (phase) => set({ gamePhase: phase }),
+  setCurrentRound: (round) => set({ currentRound: round }),
+  setCurrentQuestion: (question) => set({ currentQuestion: question }),
+  setTimeRemaining: (time) => set({ timeRemaining: time }),
+  
+  // Utility method to update multiple game state properties at once
+  updateGameState: (stateUpdates) => set((state) => ({
+    ...state,
+    ...stateUpdates
+  })),
+  
+  submitAnswer: (playerId, answer, timeSpent) => set((state) => {
+    // Save the player's answer
+    const newAnswers = { ...state.answers };
+    newAnswers[playerId] = { answer, timeSpent };
+    
+    return { answers: newAnswers };
+  }),
+  
+  updateScores: (questionResults) => set((state) => {
+    const newScores = { ...state.scores };
+    
+    // Update each player's score based on question results
+    Object.entries(questionResults).forEach(([playerId, result]) => {
+      newScores[playerId] = (newScores[playerId] || 0) + result.points;
+    });
+    
+    return { scores: newScores };
+  }),
+  
+  eliminatePlayer: (playerId) => set((state) => ({
+    eliminatedPlayers: [...state.eliminatedPlayers, playerId]
+  })),
+  
+  // Reset game state
+  resetQuiz: () => set({
+    currentQuestion: null,
+    timeRemaining: 0,
+    answers: {},
+  }),
+  
+  // Reset the entire game state
   resetGame: () => set({
     players: {},
     currentPlayerId: null,
-    gameStarted: false
+    gameStarted: false,
+    gamePhase: 'waiting',
+    currentRound: 0,
+    currentQuestion: null,
+    timeRemaining: 0,
+    answers: {},
+    scores: {},
+    eliminatedPlayers: []
   })
 }));

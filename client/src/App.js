@@ -9,6 +9,7 @@ import Room from './components/Room';
 import Table from './components/Table';
 import Chair from './components/Chair';
 import RemotePlayer from './components/RemotePlayer';
+import QuizDisplay from './components/QuizDisplay';
 
 function App() {
   const { connectionState, connect, room } = useConnection();
@@ -137,6 +138,32 @@ function App() {
                       playerNumber={chairPlayerNumbers[3]} 
                       occupied={chairOccupancy[3]} 
                     />
+                    
+                    {/* Tablets on the table for each player */}
+                    {chairOccupancy[0] && (
+                      <QuizDisplay 
+                        position={[0, 0.81, 0.73]} 
+                        rotation={[0, Math.PI, 0]} 
+                      />
+                    )}
+                    {chairOccupancy[1] && (
+                      <QuizDisplay 
+                        position={[0, 0.81, -0.73]} 
+                        rotation={[0, 0, 0]} 
+                      />
+                    )}
+                    {chairOccupancy[2] && (
+                      <QuizDisplay 
+                        position={[0.73, 0.81, 0]} 
+                        rotation={[0, Math.PI * 1.5, 0]} 
+                      />
+                    )}
+                    {chairOccupancy[3] && (
+                      <QuizDisplay 
+                        position={[-0.73, 0.81, 0]} 
+                        rotation={[0, Math.PI * 0.5, 0]} 
+                      />
+                    )}
                   </>
                 );
               })()}

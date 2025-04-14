@@ -30,7 +30,12 @@ export const useConnection = () => {
     removePlayer, 
     updatePlayer, 
     setCurrentPlayerId,
-    resetGame
+    resetGame,
+    setGamePhase,
+    setCurrentRound,
+    setCurrentQuestion,
+    setTimeRemaining,
+    updateGameState
   } = useGameStore();
 
   // Initialize connection to the Colyseus server without joining a room
@@ -219,8 +224,35 @@ export const useConnection = () => {
       removePlayer(playerId);
     };
     
+    // Handle game state changes
+    gameRoom.state.listen("gamePhase", (newValue) => {
+      console.log("Game phase changed:", newValue);
+      setGamePhase(newValue);
+    });
+    
+    gameRoom.state.listen("currentRound", (newValue) => {
+      console.log("Current round changed:", newValue);
+      setCurrentRound(newValue);
+    });
+    
+    gameRoom.state.listen("currentQuestion", (newValue) => {
+      console.log("Current question changed:", newValue);
+      setCurrentQuestion(newValue);
+    });
+    
+    gameRoom.state.listen("timeRemaining", (newValue) => {
+      setTimeRemaining(newValue);
+    });
+    
+    gameRoom.state.listen("eliminatedPlayers", (newValue) => {
+      console.log("Eliminated players changed:", newValue);
+      // As this is an array we need to copy it
+      const eliminatedPlayersArray = [...newValue];
+      updateGameState({ eliminatedPlayers: eliminatedPlayersArray });
+    });
+    
     // Handle room events
-    gameRoom.onMessage('game_event', (message) => {
+    gameRoom.onMessage("game_event", (message) => {
       console.log('Game event received:', message);
     });
     

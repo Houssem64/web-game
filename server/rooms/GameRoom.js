@@ -59,9 +59,81 @@ const CHAIR_POSITIONS = [
 // Track active rooms to prevent creating too many
 const activeRooms = new Map();
 
+// Quiz constants
+const QUESTION_TIME = 20; // Seconds per question
+const ROUNDS_BEFORE_ELIMINATION = 5;
+const MAX_SCORE_PER_QUESTION = 1000;
+const QUESTIONS = [
+  {
+    question: "What is the capital of France?",
+    options: ["Berlin", "Paris", "London", "Madrid"],
+    correctAnswer: 1 // 0-based index
+  },
+  {
+    question: "Which planet is closest to the sun?",
+    options: ["Venus", "Earth", "Mercury", "Mars"],
+    correctAnswer: 2
+  },
+  {
+    question: "Who painted the Mona Lisa?",
+    options: ["Michelangelo", "Leonardo da Vinci", "Raphael", "Donatello"],
+    correctAnswer: 1
+  },
+  {
+    question: "What is the largest mammal?",
+    options: ["Elephant", "Blue Whale", "Giraffe", "Hippopotamus"],
+    correctAnswer: 1
+  },
+  {
+    question: "What is the chemical symbol for gold?",
+    options: ["Go", "Gl", "Gd", "Au"],
+    correctAnswer: 3
+  },
+  {
+    question: "Which country has the largest population?",
+    options: ["India", "USA", "China", "Russia"],
+    correctAnswer: 2
+  },
+  {
+    question: "What is the largest organ in the human body?",
+    options: ["Heart", "Liver", "Skin", "Brain"],
+    correctAnswer: 2
+  },
+  {
+    question: "Which famous scientist developed the theory of relativity?",
+    options: ["Isaac Newton", "Albert Einstein", "Galileo Galilei", "Stephen Hawking"],
+    correctAnswer: 1
+  },
+  {
+    question: "What is the tallest mountain in the world?",
+    options: ["K2", "Mount Everest", "Mount Kilimanjaro", "Matterhorn"],
+    correctAnswer: 1
+  },
+  {
+    question: "Which element has the chemical symbol 'O'?",
+    options: ["Osmium", "Oxygen", "Oganesson", "Oregano"],
+    correctAnswer: 1
+  },
+];
+
 class GameRoom extends Room {
   // Store client activity timeouts
   clientTimeouts = {};
+  
+  // Chair positions for quick reference
+  chairPositions = [];
+  
+  // Quiz game state
+  currentRound = 0;
+  currentQuestion = null;
+  questionStartTime = null;
+  playerAnswers = {};
+  playerScores = {};
+  roundInProgress = false;
+  gamePhase = "waiting"; // waiting, quiz, elimination, finished
+  eliminatedPlayers = [];
+  questionTimer = null;
+  usedQuestions = [];
   
   onCreate(options) {
     console.log("Game room created!", options);
@@ -140,6 +212,31 @@ class GameRoom extends Room {
         player.connected = true;
         player.lastActive = Date.now();
         this.refreshClientTimeout(client.sessionId);
+      }
+    });
+    
+    // Room events for clients to listen to
+    this.onMessage("start_game", (client) => {
+      // Only the host can start the game
+      const player = this.state.players.get(client.sessionId);
+      if (player && player.isHost) {
+        this.startGame();
+      }
+    });
+    
+    this.onMessage("submit_answer", (client, data) => {
+      // Only accept answers if a question is active
+      if (this.gamePhase === "quiz" && this.roundInProgress) {
+        const timeTaken = Date.now() - this.questionStartTime;
+        
+        // Save the player's answer with timestamp
+        this.playerAnswers[client.sessionId] = {
+          answer: data.answer,
+          timeTaken: timeTaken
+        };
+        
+        // Check if all players have answered
+        this.checkAllPlayersAnswered();
       }
     });
   }
@@ -496,6 +593,287 @@ class GameRoom extends Room {
   update(deltaTime) {
     // Game logic update - runs at 60fps
     // Currently empty since the game state is driven by client updates
+  }
+  
+  // Helper methods for the quiz game
+  startGame() {
+    if (this.state.gameStarted) return;
+    
+    // Reset game state
+    this.currentRound = 0;
+    this.playerScores = {};
+    this.eliminatedPlayers = [];
+    this.usedQuestions = [];
+    
+    // Initialize scores for all connected players
+    this.state.players.forEach((player, sessionId) => {
+      this.playerScores[sessionId] = 0;
+    });
+    
+    // Update game state
+    this.state.gameStarted = true;
+    this.gamePhase = "quiz";
+    this.state.gamePhase = "quiz";
+    
+    // Start the first round
+    this.startNextRound();
+    
+    // Notify all clients that the game has started
+    this.broadcast("game_started");
+    
+    console.log("Game started!");
+  }
+  
+  startNextRound() {
+    // Check if we need to eliminate players
+    if (this.currentRound > 0 && this.currentRound % ROUNDS_BEFORE_ELIMINATION === 0) {
+      this.eliminateLowestScorer();
+      return; // The next round will be started after elimination
+    }
+    
+    this.currentRound++;
+    this.state.currentRound = this.currentRound;
+    this.roundInProgress = true;
+    this.playerAnswers = {};
+    
+    // Select a random question that hasn't been used yet
+    const availableQuestions = QUESTIONS.filter(q => !this.usedQuestions.includes(q));
+    if (availableQuestions.length === 0) {
+      // If we've used all questions, reset the used questions
+      this.usedQuestions = [];
+      this.currentQuestion = QUESTIONS[Math.floor(Math.random() * QUESTIONS.length)];
+    } else {
+      this.currentQuestion = availableQuestions[Math.floor(Math.random() * availableQuestions.length)];
+    }
+    
+    // Mark this question as used
+    this.usedQuestions.push(this.currentQuestion);
+    
+    // Update game state for clients
+    this.state.currentQuestion = this.currentQuestion;
+    this.state.timeRemaining = QUESTION_TIME;
+    
+    // Record start time for score calculation
+    this.questionStartTime = Date.now();
+    
+    // Start the question timer
+    this.questionTimer = this.clock.setTimeout(() => {
+      this.endRound();
+    }, QUESTION_TIME * 1000);
+    
+    // Notify clients about the new question
+    this.broadcast("new_question", {
+      question: this.currentQuestion.question,
+      options: this.currentQuestion.options,
+      timeLimit: QUESTION_TIME,
+      round: this.currentRound
+    });
+    
+    // Start countdown timer updates to clients
+    this.startCountdown();
+    
+    console.log(`Round ${this.currentRound} started with question: ${this.currentQuestion.question}`);
+  }
+  
+  startCountdown() {
+    // Send time updates to clients every second
+    let timeLeft = QUESTION_TIME;
+    
+    const updateTime = () => {
+      if (timeLeft > 0 && this.roundInProgress) {
+        timeLeft--;
+        this.state.timeRemaining = timeLeft;
+        
+        // Schedule the next update
+        this.clock.setTimeout(updateTime, 1000);
+      }
+    };
+    
+    // Start the countdown
+    updateTime();
+  }
+  
+  checkAllPlayersAnswered() {
+    // Get active (non-eliminated) players
+    const activePlayers = Array.from(this.state.players.keys())
+      .filter(id => !this.eliminatedPlayers.includes(id));
+    
+    // Check if all active players have answered
+    const allAnswered = activePlayers.every(id => this.playerAnswers[id] !== undefined);
+    
+    if (allAnswered) {
+      // End the round early if everyone has answered
+      if (this.questionTimer) {
+        this.clock.clearTimeout(this.questionTimer);
+      }
+      this.endRound();
+    }
+  }
+  
+  endRound() {
+    if (!this.roundInProgress) return;
+    
+    this.roundInProgress = false;
+    
+    // Calculate scores for this round
+    const correctAnswer = this.currentQuestion.correctAnswer;
+    const roundResults = {};
+    
+    // Calculate points for each player based on their answer and time taken
+    this.state.players.forEach((player, sessionId) => {
+      // Skip eliminated players
+      if (this.eliminatedPlayers.includes(sessionId)) return;
+      
+      const playerAnswer = this.playerAnswers[sessionId];
+      
+      // If player didn't answer, they get 0 points
+      if (!playerAnswer) {
+        roundResults[sessionId] = {
+          correct: false,
+          answer: -1,
+          timeTaken: QUESTION_TIME * 1000,
+          points: 0
+        };
+        return;
+      }
+      
+      // Check if answer is correct
+      const isCorrect = playerAnswer.answer === correctAnswer;
+      
+      // Calculate points - faster answers get more points
+      let points = 0;
+      if (isCorrect) {
+        // Maximum points for instant answer, decreasing to min points at time limit
+        const timeRatio = Math.min(playerAnswer.timeTaken / (QUESTION_TIME * 1000), 1);
+        points = Math.round(MAX_SCORE_PER_QUESTION * (1 - timeRatio * 0.7)); // At full time, still get 30% of max
+      }
+      
+      // Update player's total score
+      this.playerScores[sessionId] = (this.playerScores[sessionId] || 0) + points;
+      
+      // Store round results for this player
+      roundResults[sessionId] = {
+        correct: isCorrect,
+        answer: playerAnswer.answer,
+        timeTaken: playerAnswer.timeTaken,
+        points: points
+      };
+    });
+    
+    // Send results to all clients
+    this.broadcast("round_results", {
+      correctAnswer: correctAnswer,
+      playerResults: roundResults,
+      scores: this.playerScores
+    });
+    
+    // Check if the game is over
+    if (this.getActivePlayers().length <= 1) {
+      this.endGame();
+    } else {
+      // Start the next round after a delay
+      this.clock.setTimeout(() => {
+        this.startNextRound();
+      }, 5000); // 5 seconds between rounds
+    }
+    
+    console.log(`Round ${this.currentRound} ended. Scores:`, this.playerScores);
+  }
+  
+  eliminateLowestScorer() {
+    // Change phase to elimination
+    this.gamePhase = "elimination";
+    this.state.gamePhase = "elimination";
+    
+    // Get currently active players
+    const activePlayers = this.getActivePlayers();
+    
+    if (activePlayers.length <= 1) {
+      // Game is over, declare the remaining player as winner
+      this.endGame();
+      return;
+    }
+    
+    // Find player with lowest score
+    let lowestScore = Infinity;
+    let lowestScorer = null;
+    
+    activePlayers.forEach(id => {
+      const score = this.playerScores[id] || 0;
+      if (score < lowestScore) {
+        lowestScore = score;
+        lowestScorer = id;
+      }
+    });
+    
+    if (lowestScorer) {
+      // Add player to eliminated list
+      this.eliminatedPlayers.push(lowestScorer);
+      this.state.eliminatedPlayers.push(lowestScorer);
+      
+      // Get player data for the eliminated player
+      const eliminatedPlayer = this.state.players.get(lowestScorer);
+      
+      // Send elimination notification to all clients
+      this.broadcast("player_eliminated", {
+        playerId: lowestScorer,
+        playerNumber: eliminatedPlayer.playerNumber,
+        score: lowestScore
+      });
+      
+      console.log(`Player ${lowestScorer} (P${eliminatedPlayer.playerNumber}) eliminated with score ${lowestScore}`);
+      
+      // Start next round after a delay
+      this.clock.setTimeout(() => {
+        this.gamePhase = "quiz";
+        this.state.gamePhase = "quiz";
+        this.startNextRound();
+      }, 5000); // 5 seconds to show elimination
+    }
+  }
+  
+  endGame() {
+    // Get the winner (last remaining player)
+    const activePlayers = this.getActivePlayers();
+    
+    if (activePlayers.length === 1) {
+      const winnerId = activePlayers[0];
+      const winner = this.state.players.get(winnerId);
+      
+      // Set game phase to finished
+      this.gamePhase = "finished";
+      this.state.gamePhase = "finished";
+      
+      // Notify all clients about the winner
+      this.broadcast("game_over", {
+        winnerId: winnerId,
+        winnerNumber: winner.playerNumber,
+        winnerScore: this.playerScores[winnerId] || 0
+      });
+      
+      console.log(`Game over! Player ${winnerId} (P${winner.playerNumber}) wins with score ${this.playerScores[winnerId] || 0}`);
+    } else {
+      // No winner (could be a tie or everyone eliminated)
+      this.broadcast("game_over", { tie: true });
+      console.log("Game over with no clear winner!");
+    }
+    
+    // Reset game state after a delay
+    this.clock.setTimeout(() => {
+      this.state.gameStarted = false;
+      this.state.gamePhase = "waiting";
+      this.gamePhase = "waiting";
+      this.currentRound = 0;
+      this.state.currentRound = 0;
+      this.eliminatedPlayers = [];
+      this.state.eliminatedPlayers = [];
+    }, 10000); // 10 seconds to show end game screen
+  }
+  
+  getActivePlayers() {
+    // Return array of player IDs who haven't been eliminated
+    return Array.from(this.state.players.keys())
+      .filter(id => !this.eliminatedPlayers.includes(id));
   }
 }
 
