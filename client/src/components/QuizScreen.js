@@ -195,11 +195,8 @@ const QuizScreen = () => {
     return (
       <div className="quiz-screen waiting" style={styles.quizScreen}>
         <h2 style={{ fontSize: '130%', textAlign: 'center', marginTop: '20px' }}>
-          Players are getting ready...
+          Game will start soon
         </h2>
-        <p style={{ textAlign: 'center', color: '#d1d5db' }}>
-          Once everyone is ready, the host can start the game from the menu.
-        </p>
       </div>
     );
   }
