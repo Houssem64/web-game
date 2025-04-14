@@ -1,5 +1,6 @@
 import React from 'react';
 import { CONNECTION_STATE } from '../../hooks/useConnection';
+import './UI.css';
 
 export const ConnectionStatus = ({ status }) => {
   let statusClass = '';

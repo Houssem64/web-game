@@ -1,0 +1,230 @@
+/* UI Components Styles */
+
+/* Game Menu Styles */
+.game-menu-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(0, 0, 0, 0.75);
+  z-index: 50;
+}
+
+.game-menu-panel {
+  background-color: #1f2937;
+  padding: 2rem;
+  border-radius: 0.5rem;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+  max-width: 28rem;
+  width: 100%;
+}
+
+.menu-title {
+  font-size: 1.875rem;
+  font-weight: bold;
+  text-align: center;
+  color: white;
+  margin-bottom: 1.5rem;
+}
+
+.menu-subtitle {
+  font-size: 1.5rem;
+  font-weight: bold;
+  text-align: center;
+  color: white;
+  margin-bottom: 1.5rem;
+}
+
+.menu-flex-col {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.menu-btn {
+  padding: 0.75rem 1.5rem;
+  border-radius: 0.5rem;
+  font-size: 1.125rem;
+  font-weight: 600;
+  text-align: center;
+  cursor: pointer;
+  border: none;
+  transition: background-color 0.2s;
+}
+
+.menu-btn-blue {
+  background-color: #2563eb;
+  color: white;
+}
+
+.menu-btn-blue:hover {
+  background-color: #1d4ed8;
+}
+
+.menu-btn-green {
+  background-color: #059669;
+  color: white;
+}
+
+.menu-btn-green:hover {
+  background-color: #047857;
+}
+
+.menu-btn-purple {
+  background-color: #7c3aed;
+  color: white;
+}
+
+.menu-btn-purple:hover {
+  background-color: #6d28d9;
+}
+
+.menu-btn-gray {
+  background-color: #4b5563;
+  color: white;
+}
+
+.menu-btn-gray:hover {
+  background-color: #374151;
+}
+
+.menu-input-label {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #d1d5db;
+  margin-bottom: 0.25rem;
+}
+
+.menu-input {
+  width: 100%;
+  padding: 0.5rem 1rem;
+  background-color: #374151;
+  color: white;
+  border-radius: 0.375rem;
+  border: none;
+  outline: none;
+}
+
+.menu-input:focus {
+  box-shadow: 0 0 0 2px #3b82f6;
+}
+
+.menu-error {
+  color: #ef4444;
+  font-size: 0.875rem;
+}
+
+.menu-flex-row {
+  display: flex;
+  gap: 1rem;
+}
+
+.flex-1 {
+  flex: 1;
+}
+
+/* Answer Button Styles */
+.answer-button {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 0.75rem 1rem;
+  margin-bottom: 0.625rem;
+  border: none;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 110%;
+}
+
+.answer-button:disabled {
+  opacity: 0.7;
+  cursor: default;
+}
+
+.answer-button:hover:not(:disabled) {
+  transform: scale(1.02);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+}
+
+.answer-letter {
+  background-color: rgba(255, 255, 255, 0.2);
+  color: white;
+  border-radius: 50%;
+  width: 2rem;
+  height: 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 0.75rem;
+  font-weight: bold;
+}
+
+.answer-text {
+  flex: 1;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Button Colors */
+.answer-button-a {
+  background-color: #d32f2f;
+  color: white;
+}
+
+.answer-button-a:hover:not(:disabled) {
+  background-color: #f44336;
+}
+
+.answer-button-a.selected {
+  background-color: #b71c1c;
+  font-weight: bold;
+}
+
+.answer-button-b {
+  background-color: #1976d2;
+  color: white;
+}
+
+.answer-button-b:hover:not(:disabled) {
+  background-color: #2196f3;
+}
+
+.answer-button-b.selected {
+  background-color: #0d47a1;
+  font-weight: bold;
+}
+
+.answer-button-c {
+  background-color: #388e3c;
+  color: white;
+}
+
+.answer-button-c:hover:not(:disabled) {
+  background-color: #4caf50;
+}
+
+.answer-button-c.selected {
+  background-color: #1b5e20;
+  font-weight: bold;
+}
+
+.answer-button-d {
+  background-color: #ffa000;
+  color: white;
+}
+
+.answer-button-d:hover:not(:disabled) {
+  background-color: #ffc107;
+}
+
+.answer-button-d.selected {
+  background-color: #ff8f00;
+  font-weight: bold;
+} 

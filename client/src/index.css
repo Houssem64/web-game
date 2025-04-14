@@ -1,5 +1,10 @@
 /* Base styles */
-@import "tailwindcss";
+/* Remove Tailwind import */
+
+/* Reset and base styles */
+* {
+  box-sizing: border-box;
+}
 
 body {
   margin: 0;
@@ -19,6 +24,31 @@ code {
     monospace;
 }
 
+/* Common utility classes */
+.flex { display: flex; }
+.flex-col { flex-direction: column; }
+.items-center { align-items: center; }
+.justify-center { justify-content: center; }
+.justify-between { justify-content: space-between; }
+.text-center { text-align: center; }
+.fixed { position: fixed; }
+.absolute { position: absolute; }
+.relative { position: relative; }
+.inset-0 { top: 0; left: 0; right: 0; bottom: 0; }
+.z-50 { z-index: 50; }
+.pointer-events-none { pointer-events: none; }
+.rounded { border-radius: 0.25rem; }
+.rounded-full { border-radius: 9999px; }
+.bg-white { background-color: white; }
+.p-2 { padding: 0.5rem; }
+.mb-2 { margin-bottom: 0.5rem; }
+.mt-2 { margin-top: 0.5rem; }
+.text-white { color: white; }
+.bg-black { background-color: black; }
+.font-bold { font-weight: bold; }
+.opacity-75 { opacity: 0.75; }
+
+/* Connection status styles */
 .connection-status {
   position: absolute;
   top: 1rem;

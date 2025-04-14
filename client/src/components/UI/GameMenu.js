@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useConnection } from '../../hooks/useConnection';
+import './UI.css';
 
 const GameMenu = ({ onStartGame }) => {
   const [menuState, setMenuState] = useState('main'); // main, create, join, browse
@@ -85,26 +86,26 @@ const GameMenu = ({ onStartGame }) => {
   };
 
   return (
-    <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-75 z-50">
-      <div className="bg-gray-800 p-8 rounded-lg shadow-lg max-w-md w-full">
+    <div className="game-menu-container">
+      <div className="game-menu-panel">
         {menuState === 'main' && (
-          <div className="flex flex-col space-y-6">
-            <h1 className="text-3xl font-bold text-center text-white">3D Multiplayer Game</h1>
+          <div className="menu-flex-col">
+            <h1 className="menu-title">3D Multiplayer Game</h1>
             <button 
               onClick={() => setMenuState('create')}
-              className="bg-blue-600 hover:bg-blue-700 text-white py-3 px-6 rounded-lg text-lg font-semibold"
+              className="menu-btn menu-btn-blue"
             >
               Create New Game
             </button>
             <button 
               onClick={() => setMenuState('browse')}
-              className="bg-green-600 hover:bg-green-700 text-white py-3 px-6 rounded-lg text-lg font-semibold"
+              className="menu-btn menu-btn-green"
             >
               Browse Servers
             </button>
             <button 
               onClick={() => setMenuState('join')}
-              className="bg-purple-600 hover:bg-purple-700 text-white py-3 px-6 rounded-lg text-lg font-semibold"
+              className="menu-btn menu-btn-purple"
             >
               Join by Room ID
             </button>
@@ -112,10 +113,10 @@ const GameMenu = ({ onStartGame }) => {
         )}
 
         {menuState === 'create' && (
-          <div className="flex flex-col space-y-6">
-            <h2 className="text-2xl font-bold text-center text-white">Create New Game</h2>
+          <div className="menu-flex-col">
+            <h2 className="menu-subtitle">Create New Game</h2>
             <div>
-              <label htmlFor="roomName" className="block text-sm font-medium text-gray-300 mb-1">
+              <label htmlFor="roomName" className="menu-input-label">
                 Room Name
               </label>
               <input
@@ -123,21 +124,21 @@ const GameMenu = ({ onStartGame }) => {
                 type="text"
                 value={roomName}
                 onChange={(e) => setRoomName(e.target.value)}
-                className="w-full px-4 py-2 bg-gray-700 text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="menu-input"
                 placeholder="Enter a room name"
               />
             </div>
-            {error && <p className="text-red-500">{error}</p>}
-            <div className="flex space-x-4">
+            {error && <p className="menu-error">{error}</p>}
+            <div className="menu-flex-row">
               <button 
                 onClick={() => setMenuState('main')}
-                className="bg-gray-600 hover:bg-gray-700 text-white py-2 px-4 rounded-lg font-medium flex-1"
+                className="menu-btn menu-btn-gray flex-1"
               >
                 Back
               </button>
               <button 
                 onClick={handleCreateRoom}
-                className="bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-lg font-medium flex-1"
+                className="menu-btn menu-btn-blue flex-1"
               >
                 Create Room
               </button>
@@ -146,22 +147,31 @@ const GameMenu = ({ onStartGame }) => {
         )}
 
         {menuState === 'created' && (
-          <div className="flex flex-col space-y-6">
-            <h2 className="text-2xl font-bold text-center text-white">Room Created!</h2>
+          <div className="menu-flex-col">
+            <h2 className="menu-subtitle">Room Created!</h2>
             <div>
-              <p className="text-gray-300 mb-2">Share this Room ID with your friends:</p>
-              <div className="flex">
+              <p style={{ color: '#d1d5db', marginBottom: '0.5rem' }}>Share this Room ID with your friends:</p>
+              <div style={{ display: 'flex' }}>
                 <input
                   type="text"
                   value={createdRoomId}
                   readOnly
-                  className="w-full px-4 py-2 bg-gray-700 text-white rounded-l-md focus:outline-none"
+                  className="menu-input"
+                  style={{ borderTopRightRadius: 0, borderBottomRightRadius: 0 }}
                 />
                 <button
                   onClick={() => {
                     navigator.clipboard.writeText(createdRoomId);
                   }}
-                  className="bg-gray-600 hover:bg-gray-700 text-white px-4 rounded-r-md"
+                  style={{ 
+                    backgroundColor: '#4b5563', 
+                    color: 'white', 
+                    padding: '0.5rem 1rem',
+                    borderTopRightRadius: '0.375rem',
+                    borderBottomRightRadius: '0.375rem',
+                    border: 'none',
+                    cursor: 'pointer'
+                  }}
                 >
                   Copy
                 </button>
@@ -169,7 +179,7 @@ const GameMenu = ({ onStartGame }) => {
             </div>
             <button 
               onClick={handleStartGame}
-              className="bg-green-600 hover:bg-green-700 text-white py-3 px-6 rounded-lg text-lg font-semibold"
+              className="menu-btn menu-btn-green"
             >
               Start Game
             </button>
@@ -177,10 +187,10 @@ const GameMenu = ({ onStartGame }) => {
         )}
 
         {menuState === 'join' && (
-          <div className="flex flex-col space-y-6">
-            <h2 className="text-2xl font-bold text-center text-white">Join Game by ID</h2>
+          <div className="menu-flex-col">
+            <h2 className="menu-subtitle">Join Game by ID</h2>
             <div>
-              <label htmlFor="roomId" className="block text-sm font-medium text-gray-300 mb-1">
+              <label htmlFor="roomId" className="menu-input-label">
                 Room ID
               </label>
               <input
@@ -188,111 +198,87 @@ const GameMenu = ({ onStartGame }) => {
                 type="text"
                 value={roomId}
                 onChange={(e) => setRoomId(e.target.value)}
-                className="w-full px-4 py-2 bg-gray-700 text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="menu-input"
                 placeholder="Enter the room ID"
               />
             </div>
-            {error && <p className="text-red-500">{error}</p>}
-            <div className="flex space-x-4">
+            {error && <p className="menu-error">{error}</p>}
+            <div className="menu-flex-row">
               <button 
                 onClick={() => setMenuState('main')}
-                className="bg-gray-600 hover:bg-gray-700 text-white py-2 px-4 rounded-lg font-medium flex-1"
+                className="menu-btn menu-btn-gray flex-1"
               >
                 Back
               </button>
               <button 
                 onClick={handleJoinRoom}
-                className="bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded-lg font-medium flex-1"
+                className="menu-btn menu-btn-blue flex-1"
               >
                 Join Room
               </button>
             </div>
           </div>
         )}
-        
+
         {menuState === 'browse' && (
-          <div className="flex flex-col space-y-6">
-            <h2 className="text-2xl font-bold text-center text-white">Browse Servers</h2>
-            
-            <div className="flex justify-between items-center">
-              <span className="text-gray-300">Available games: {availableRooms.length}</span>
-              <button 
-                onClick={refreshRoomList}
-                className="bg-blue-500 hover:bg-blue-600 text-white py-1 px-3 rounded text-sm"
-                disabled={isLoadingRooms}
-              >
-                {isLoadingRooms ? 'Refreshing...' : 'Refresh'}
-              </button>
-            </div>
-            
-            <div className="bg-gray-900 rounded-md overflow-hidden max-h-64 overflow-y-auto">
+          <div className="menu-flex-col">
+            <h2 className="menu-subtitle">Server Browser</h2>
+            <div style={{ 
+              maxHeight: '240px', 
+              overflowY: 'auto', 
+              backgroundColor: '#1f2937',
+              border: '1px solid #374151', 
+              borderRadius: '0.375rem', 
+              padding: '0.5rem' 
+            }}>
               {isLoadingRooms ? (
-                <div className="flex justify-center items-center py-8">
-                  <p className="text-gray-400">Loading available servers...</p>
-                </div>
-              ) : availableRooms.length > 0 ? (
-                <table className="w-full">
-                  <thead className="bg-gray-800 text-gray-200 text-xs uppercase">
-                    <tr>
-                      <th className="px-4 py-2 text-left">Room Name</th>
-                      <th className="px-4 py-2 text-center">Players</th>
-                      <th className="px-4 py-2 text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {availableRooms.map((room) => (
-                      <tr 
-                        key={room.roomId} 
-                        className={`border-t border-gray-700 ${selectedRoom?.roomId === room.roomId ? 'bg-gray-700' : 'hover:bg-gray-800'}`}
-                        onClick={() => setSelectedRoom(room)}
-                      >
-                        <td className="px-4 py-3 text-gray-300">{room.roomName}</td>
-                        <td className="px-4 py-3 text-center">
-                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${room.clients >= room.maxClients ? 'bg-red-900 text-red-200' : 'bg-green-900 text-green-200'}`}>
-                            {room.clients} / {room.maxClients}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-right">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setSelectedRoom(room);
-                              if (room.clients < room.maxClients) {
-                                handleJoinSelectedRoom();
-                              } else {
-                                setError('This room is full');
-                              }
-                            }}
-                            disabled={room.clients >= room.maxClients}
-                            className={`text-xs font-medium py-1 px-3 rounded ${room.clients >= room.maxClients ? 'bg-gray-600 text-gray-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700 text-white'}`}
-                          >
-                            {room.clients >= room.maxClients ? 'Full' : 'Join'}
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                <p style={{ color: '#d1d5db', textAlign: 'center', padding: '1rem' }}>Loading servers...</p>
               ) : (
-                <div className="flex justify-center items-center py-8">
-                  <p className="text-gray-400">No servers available</p>
-                </div>
+                availableRooms.length === 0 ? (
+                  <p style={{ color: '#d1d5db', textAlign: 'center', padding: '1rem' }}>No active servers found.</p>
+                ) : (
+                  <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+                    {availableRooms.map((room) => (
+                      <li 
+                        key={room.roomId} 
+                        onClick={() => setSelectedRoom(room)}
+                        style={{ 
+                          padding: '0.5rem', 
+                          margin: '0.25rem 0',
+                          backgroundColor: selectedRoom?.roomId === room.roomId ? '#3b82f6' : '#374151',
+                          borderRadius: '0.25rem',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <p style={{ margin: 0, fontWeight: 'bold', color: 'white' }}>{room.metadata.name}</p>
+                        <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.75rem', color: '#d1d5db' }}>
+                          Players: {room.clients}/{room.maxClients}
+                        </p>
+                      </li>
+                    ))}
+                  </ul>
+                )
               )}
             </div>
-            
-            {error && <p className="text-red-500">{error}</p>}
-            
-            <div className="flex space-x-4">
+            <div className="menu-flex-row">
+              <button 
+                onClick={refreshRoomList}
+                className="menu-btn menu-btn-gray"
+                style={{ flex: '0 0 auto' }}
+              >
+                Refresh
+              </button>
               <button 
                 onClick={() => setMenuState('main')}
-                className="bg-gray-600 hover:bg-gray-700 text-white py-2 px-4 rounded-lg font-medium flex-1"
+                className="menu-btn menu-btn-gray flex-1"
               >
                 Back
               </button>
               <button 
                 onClick={handleJoinSelectedRoom}
-                disabled={!selectedRoom || selectedRoom.clients >= selectedRoom.maxClients}
-                className={`py-2 px-4 rounded-lg font-medium flex-1 ${!selectedRoom || selectedRoom.clients >= selectedRoom.maxClients ? 'bg-gray-600 text-gray-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700 text-white'}`}
+                className="menu-btn menu-btn-blue flex-1"
+                disabled={!selectedRoom}
+                style={{ opacity: !selectedRoom ? 0.5 : 1 }}
               >
                 Join Selected
               </button>

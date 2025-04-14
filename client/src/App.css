@@ -37,4 +37,28 @@
   }
 }
  */
- @import "tailwindcss";
+
+/* App.css - Core Application Styles */
+
+.app-container {
+  height: 100vh;
+  width: 100vw;
+}
+
+/* Controls hint styles */
+.controls-hint {
+  position: fixed;
+  bottom: 1rem;
+  right: 1rem;
+  color: white;
+  background-color: rgba(55, 65, 81, 0.75);
+  padding: 0.5rem;
+  border-radius: 0.5rem;
+}
+
+.keyboard-key {
+  padding: 0 0.5rem;
+  background-color: #4b5563;
+  border-radius: 0.25rem;
+  font-family: monospace;
+}

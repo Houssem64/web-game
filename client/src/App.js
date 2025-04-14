@@ -12,6 +12,7 @@ import RemotePlayer from './components/RemotePlayer';
 import QuizDisplay from './components/QuizDisplay';
 import Crosshair from './components/Crosshair';
 import * as THREE from 'three';
+import './App.css';
 
 function App() {
   const { connectionState, connect, room } = useConnection();
@@ -99,7 +100,7 @@ function App() {
   };
 
   return (
-    <div style={{ height: '100vh', width: '100vw' }}>
+    <div className="app-container">
       {/* Show the game menu or the 3D game */}
       {showMenu ? (
         <GameMenu onStartGame={handleStartGame} />
@@ -212,8 +213,6 @@ function App() {
                         rotation={[0, Math.PI * 0.5, 0]} 
                       />
                     )}
-                    
-                    {/* Answer Buttons are now virtual and part of the QuizScreen UI */}
                   </>
                 );
               })()}
@@ -261,8 +260,8 @@ function App() {
               })()}
             </Suspense>
           </Canvas>
-          <div className="fixed bottom-4 right-4 text-white bg-gray-800 bg-opacity-75 p-2 rounded-lg">
-            Press <kbd className="px-2 py-1 bg-gray-700 rounded">ESC</kbd> to open menu
+          <div className="controls-hint">
+            Press <kbd className="keyboard-key">ESC</kbd> to open menu
           </div>
         </>
       )}

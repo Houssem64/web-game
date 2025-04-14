@@ -1,4 +1,5 @@
 import React from 'react';
+import './UI.css';
 
 // Button color definitions
 const BUTTON_COLORS = {
@@ -25,51 +26,6 @@ const BUTTON_COLORS = {
 };
 
 const AnswerButton = ({ letter, text, selected, disabled, onClick }) => {
-  const [isHovered, setIsHovered] = React.useState(false);
-  const buttonColor = BUTTON_COLORS[letter];
-  
-  // Define styles inline for prettier on-screen buttons
-  const buttonStyle = {
-    display: 'flex',
-    alignItems: 'center',
-    width: '100%',
-    padding: '12px 16px',
-    marginBottom: '10px',
-    backgroundColor: selected ? buttonColor.active : 
-                   isHovered ? buttonColor.hover : 
-                   buttonColor.background,
-    color: 'white',
-    border: 'none',
-    borderRadius: '8px',
-    cursor: disabled ? 'default' : 'pointer',
-    transition: 'all 0.2s ease',
-    fontSize: '110%',
-    fontWeight: selected ? 'bold' : 'normal',
-    opacity: disabled && !selected ? 0.7 : 1,
-    transform: isHovered && !disabled ? 'scale(1.02)' : 'scale(1)',
-    boxShadow: isHovered && !disabled ? '0 4px 8px rgba(0,0,0,0.3)' : 'none'
-  };
-
-  const letterStyle = {
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    color: 'white',
-    borderRadius: '50%',
-    width: '32px',
-    height: '32px',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: '12px',
-    fontWeight: 'bold'
-  };
-
-  const textStyle = {
-    flex: 1,
-    textAlign: 'left',
-    overflow: 'hidden',
-    textOverflow: 'ellipsis'
-  };
-
   // Handle click with stopping propagation
   const handleClick = (e) => {
     if (disabled) return;
@@ -77,18 +33,18 @@ const AnswerButton = ({ letter, text, selected, disabled, onClick }) => {
     onClick();
   };
 
+  // Determine button class based on letter
+  const buttonClass = `answer-button answer-button-${letter.toLowerCase()} ${selected ? 'selected' : ''}`;
+
   return (
     <button 
-      style={buttonStyle}
+      className={buttonClass}
       onClick={handleClick}
       disabled={disabled}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-      className="answer-button"
       data-answer={letter}
     >
-      <div style={letterStyle}>{letter}</div>
-      <div style={textStyle}>{text}</div>
+      <div className="answer-letter">{letter}</div>
+      <div className="answer-text">{text}</div>
     </button>
   );
 };
