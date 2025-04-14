@@ -80,6 +80,26 @@ const GameMenu = ({ onStartGame }) => {
     };
   }, [room, isReady]);
   
+  // Listen for game start event from server
+  useEffect(() => {
+    if (!room) return;
+    
+    // Listen for game start event
+    const onGameStarted = () => {
+      console.log("Received game_started event from server");
+      onStartGame();
+    };
+    
+    // Register for game start updates
+    room.onMessage("game_started", onGameStarted);
+    
+    return () => {
+      if (room) {
+        room.removeAllListeners("game_started");
+      }
+    };
+  }, [room, onStartGame]);
+  
   // Function to refresh the room list
   const refreshRoomList = async () => {
     try {
@@ -157,12 +177,13 @@ const GameMenu = ({ onStartGame }) => {
 
   const handleStartGame = () => {
     if (isHost && allPlayersReady) {
-      // Notify all clients that the game is starting
+      // Notify the server that the game should start
+      // The server will broadcast a game_started event to all clients
       if (room) {
+        console.log("Host sending start_game message to server");
         room.send("start_game");
+        // Don't call onStartGame() directly here - wait for the server broadcast
       }
-      
-      onStartGame();
     }
   };
 

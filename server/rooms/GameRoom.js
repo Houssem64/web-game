@@ -242,7 +242,13 @@ class GameRoom extends Room {
       // Only the host can start the game
       const player = this.state.players.get(client.sessionId);
       if (player && player.isHost) {
-        this.startGame();
+        console.log("Host started the game, broadcasting to all clients");
+        // Broadcast to all clients that the game is starting
+        this.broadcast("game_started", { started: true });
+        // Start the game after a short delay to ensure all clients receive the message
+        setTimeout(() => {
+          this.startGame();
+        }, 200);
       }
     });
     
