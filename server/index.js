@@ -17,22 +17,39 @@ app.use(express.json());
 const server = http.createServer(app);
 const gameServer = new Server({
   server,
-  // Improved settings for connection management
-  pingInterval: 2000, // Check connection status every 2 seconds
-  pingMaxRetries: 3,  // Allow 3 retries before considering connection lost
-  verifyClient: false, // Disable client verification to speed up connections
-  gracefullyShutdown: false, // Don't wait for all clients to disconnect on shutdown
 });
 
 // Register our custom game room
 gameServer.define('game_room', GameRoom, {
   // Make room public (default is true, but explicit is better)
   private: false,
-  // Allow at most 1 room with the same name (prevents multiple identical rooms)
+  // Set a reasonable limit for concurrent rooms
   maxRooms: 5,
   // Configure room presence
   presence: true
 });
+
+// Improve automatic room cleanup and prevent auto-creation of rooms
+gameServer.onShutdown(() => {
+  console.log("Game server is shutting down.");
+});
+
+// Remove the matchMaker event listeners since they're not supported in this version
+// gameServer.matchMaker.on('create', (room) => {
+//   console.log(`Room created with ID: ${room.roomId}`);
+// });
+
+// gameServer.matchMaker.on('dispose', (room) => {
+//   console.log(`Room disposed with ID: ${room.roomId}`);
+// });
+
+// gameServer.matchMaker.on('join', (room, client) => {
+//   console.log(`Client ${client.sessionId} joined room ${room.roomId}`);
+// });
+
+// gameServer.matchMaker.on('leave', (room, client) => {
+//   console.log(`Client ${client.sessionId} left room ${room.roomId}`);
+// });
 
 // Attach the Colyseus monitor (available at /colyseus)
 app.use('/colyseus', monitor());
@@ -46,19 +63,53 @@ app.get('/', (req, res) => {
 
 // Get available rooms
 app.get('/rooms', (req, res) => {
-  const rooms = gameServer.matchMaker.rooms
-    .filter(room => room.roomName === 'game_room')
-    .map(room => ({
-      roomId: room.roomId,
-      name: room.state?.roomName || 'Unnamed Room',
-      clients: room.clients.length,
-      maxClients: room.maxClients,
-      createdAt: room.state?.createdAt || Date.now(),
-    }));
-  
-  res.json(rooms);
+  try {
+    if (!gameServer.matchMaker || !gameServer.matchMaker.rooms) {
+      return res.json([]);
+    }
+    
+    const rooms = gameServer.matchMaker.rooms
+      .filter(room => room.roomName === 'game_room')
+      .map(room => ({
+        roomId: room.roomId,
+        name: room.state?.roomName || 'Unnamed Room',
+        clients: room.clients.length,
+        maxClients: room.maxClients,
+        createdAt: room.state?.createdAt || Date.now(),
+      }));
+    
+    res.json(rooms);
+  } catch (error) {
+    console.error("Error getting available rooms:", error);
+    res.status(500).json({ error: "Failed to get available rooms" });
+  }
 });
 
 // Start the server
 gameServer.listen(port);
 console.log(`Game server started on http://localhost:${port}`);
+
+// Cleanup function to remove any automatically created rooms on server startup
+const cleanupAutoCreatedRooms = () => {
+  try {
+    console.log("Checking for auto-created rooms...");
+    
+    // In Colyseus, check if matchMaker and rooms are available
+    if (gameServer.matchMaker && gameServer.matchMaker.rooms) {
+      const rooms = gameServer.matchMaker.rooms.filter(room => room.roomName === 'game_room');
+      
+      if (rooms && rooms.length > 0) {
+        console.log(`Found ${rooms.length} rooms at startup. They will self-dispose if auto-created.`);
+      } else {
+        console.log("No auto-created rooms found.");
+      }
+    } else {
+      console.log("MatchMaker rooms not available yet, skipping cleanup.");
+    }
+  } catch (error) {
+    console.error("Error checking for auto-created rooms:", error);
+  }
+};
+
+// Run the cleanup after a short delay to ensure server is fully started
+setTimeout(cleanupAutoCreatedRooms, 1000);

@@ -45,7 +45,9 @@ function App() {
     // Check each player
     Object.values(players).forEach(player => {
       // Check if player has a valid chair index and is connected
-      if (player.chairIndex >= 0 && player.chairIndex < 4 && player.connected !== false) {
+      if (player.chairIndex >= 0 && 
+          player.chairIndex < 4 && 
+          player.connected !== false) {
         newOccupancy[player.chairIndex] = true;
         newPlayerNumbers[player.chairIndex] = player.playerNumber || 0;
         console.log(`Chair ${player.chairIndex} is occupied by player ${player.playerNumber}`);
@@ -122,26 +124,46 @@ function App() {
           />
           
           {/* Remote players - only render those with valid positions */}
-          {Object.entries(players)
-            .filter(([id]) => id !== currentPlayerId)
-            .filter(([_, player]) => {
-              // Only render players with valid positions and who are active
-              return player && 
-                typeof player.x === 'number' && 
-                typeof player.y === 'number' && 
-                typeof player.z === 'number' &&
-                // Make sure player has a valid playerNumber
-                player.playerNumber > 0;
-            })
-            .map(([id, player]) => (
-              <RemotePlayer
-                key={id}
-                position={[player.x, player.y, player.z]}
-                rotation={[0, player.rotationY, 0]}
-                playerNumber={player.playerNumber}
-                isHost={player.isHost}
-              />
-            ))}
+          {(() => {
+            // Add debugging to see what players we're trying to render
+            const remotePlayerEntries = Object.entries(players)
+              .filter(([id]) => id !== currentPlayerId);
+            
+            console.log('Remote players before filtering:', remotePlayerEntries);
+            
+            const validRemotePlayers = remotePlayerEntries
+              .filter(([_, player]) => {
+                // Only render players with valid positions and who are active
+                const isValid = player && 
+                  typeof player.x === 'number' && 
+                  typeof player.y === 'number' && 
+                  typeof player.z === 'number' &&
+                  player.connected !== false && // Check if player is connected
+                  player.playerNumber > 0;
+                  
+                if (!isValid) {
+                  console.log('Filtering out invalid player:', player);
+                }
+                
+                return isValid;
+              });
+            
+            console.log('Valid remote players after filtering:', validRemotePlayers);
+            
+            return validRemotePlayers.map(([id, player]) => {
+              console.log(`Rendering remote player ${id} at position:`, [player.x, player.y, player.z]);
+              return (
+                <RemotePlayer
+                  key={id}
+                  position={[player.x, player.y, player.z]}
+                  rotation={[0, player.rotationY, 0]}
+                  playerNumber={player.playerNumber}
+                  isHost={player.isHost}
+                />
+              );
+            });
+          })()
+          }
         </Suspense>
       </Canvas>
           <div className="fixed bottom-4 right-4 text-white bg-gray-800 bg-opacity-75 p-2 rounded-lg">

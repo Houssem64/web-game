@@ -87,7 +87,10 @@ export const useConnection = () => {
       
       // Create a new game room with the provided name
       console.log(`Creating new game room with name: ${roomName}`);
-      const gameRoom = await client.create('game_room', { roomName });
+      const gameRoom = await client.create('game_room', { 
+        roomName,
+        createdByPlayer: true  // Mark this room as created by a player
+      });
       console.log('Successfully created room with ID:', gameRoom.id);
       
       // Set up the room
@@ -146,8 +149,15 @@ export const useConnection = () => {
       
       // Join any available game room
       console.log('Attempting to join any available game room...');
-      const gameRoom = await client.joinOrCreate('game_room');
-      console.log('Successfully joined room with ID:', gameRoom.id);
+      
+      // IMPORTANT: Explicitly create the room with createdByPlayer flag
+      // This prevents the issue of automatically joining existing rooms
+      const gameRoom = await client.create('game_room', {
+        roomName: 'Custom Game',
+        createdByPlayer: true // Mark this room as created by a player
+      });
+      
+      console.log('Successfully created room with ID:', gameRoom.id);
       
       // Set up the room
       setupRoom(gameRoom);
@@ -222,14 +232,26 @@ export const useConnection = () => {
       setRoom(null);
       resetGame();
     });
+    
+    // Set up a more frequent heartbeat to keep the connection alive
+    // Send heartbeat every 30 seconds to prevent timeouts
+    const heartbeatInterval = setInterval(() => {
+      if (gameRoom.connection.isOpen) {
+        console.log('Sending heartbeat to server...');
+        gameRoom.send('heartbeat', {});
+      } else {
+        console.log('Connection closed, clearing heartbeat interval');
+        clearInterval(heartbeatInterval);
+      }
+    }, 30000);
   };
 
   // Clean up function - only leave room when the application is closed
   useEffect(() => {
-    // Reconnect if needed at startup
-    if (!hasConnected.current && connectionState === CONNECTION_STATE.DISCONNECTED) {
-      connect();
-    }
+    // We no longer auto-connect at startup to prevent unwanted connections
+    // if (!hasConnected.current && connectionState === CONNECTION_STATE.DISCONNECTED) {
+    //   connect();
+    // }
     
     // Add window beforeunload event to properly clean up
     const handleBeforeUnload = () => {

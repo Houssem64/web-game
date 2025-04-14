@@ -1,5 +1,5 @@
 const { Room } = require('colyseus');
-const { Schema, MapSchema, defineTypes } = require('@colyseus/schema');
+const { Schema, MapSchema, ArraySchema, defineTypes } = require('@colyseus/schema');
 
 // Define the Player schema for network synchronization
 class Player extends Schema {}
@@ -28,9 +28,21 @@ class GameState extends Schema {
     this.nextPlayerNumber = 1; // Counter for assigning player numbers
     
     // Track which chairs are occupied (indexed 0-3)
-    this.occupiedChairs = [false, false, false, false];
+    // Initialize as an ArraySchema for proper synchronization
+    this.occupiedChairs = new ArraySchema(false, false, false, false);
   }
 }
+
+// Define types for GameState schema
+defineTypes(GameState, {
+  players: { map: Player },
+  roomId: "string",
+  roomName: "string",
+  createdAt: "number",
+  hostId: "string",
+  nextPlayerNumber: "number",
+  occupiedChairs: { array: "boolean" }
+});
 
 // Chair positions and rotations around the table
 const CHAIR_POSITIONS = [
@@ -43,15 +55,6 @@ const CHAIR_POSITIONS = [
   // P4 - facing the table from the left (X-)
   { position: [-1.25, 0, 0], rotation: Math.PI * 0.5 }
 ];
-defineTypes(GameState, {
-  players: { map: Player },
-  roomId: "string",
-  roomName: "string",
-  createdAt: "number",
-  hostId: "string",
-  nextPlayerNumber: "number",
-  occupiedChairs: "array"
-});
 
 // Track active rooms to prevent creating too many
 const activeRooms = new Map();
@@ -67,13 +70,37 @@ class GameRoom extends Room {
     this.setState(new GameState());
     
     // Set the room name if provided in options
-    if (options && options.roomName) {
-      this.state.roomName = options.roomName;
-      console.log(`Room name set to: ${options.roomName}`);
-    } else {
-      // Default name if none provided
-      this.state.roomName = `Game ${this.state.roomId}`;
+    const roomName = options?.roomName || `Game ${this.roomId}`;
+    
+    // Set the name in state AND in room metadata (for listings)
+    this.state.roomName = roomName;
+    
+    // This is crucial: set metadata for room listings
+    this.setMetadata({
+      roomName: roomName,
+      createdAt: Date.now(),
+      maxPlayers: 4,
+      createdByPlayer: options.createdByPlayer || false
+    });
+    
+    console.log(`Room created with name: "${roomName}" (visible in listings)`);
+    
+    // Only register the room if it was explicitly created by a player or with specific options
+    if (!options || (!options.createdByPlayer && Object.keys(options).length <= 1)) {
+      console.log("Room was auto-created without explicit player request. Will be disposed shortly.");
+      // Set a short timeout to dispose this room since it was auto-created
+      setTimeout(() => {
+        console.log(`Auto-disposing room ${this.roomId} that was not created by a player`);
+        try {
+          this.disconnect();
+        } catch (e) {
+          console.error(`Error disposing auto-created room: ${e.message}`);
+        }
+      }, 100);
+      return; // Skip further initialization for auto-created rooms
     }
+    
+    console.log(`Room ${this.roomId} with name "${roomName}" registered as active (created by player: ${options.createdByPlayer})`);
     
     // Register this room in active rooms map
     activeRooms.set(this.roomId, this);
@@ -123,6 +150,9 @@ class GameRoom extends Room {
     // Determine if this is the first player (host)
     const isFirstPlayer = this.state.hostId === null;
     
+    // Validate chair occupancy before assigning a new chair
+    this.validateChairOccupancy();
+    
     // For the host, ensure chair 0 is available and assign it
     // For other players, find any available chair
     let chairIndex;
@@ -162,14 +192,22 @@ class GameRoom extends Room {
     // Set player position and rotation based on their assigned chair
     if (chairIndex !== -1) {
       const chairData = CHAIR_POSITIONS[chairIndex];
+      
+      // Set position and rotation
       player.x = chairData.position[0];
       player.y = chairData.position[1];
       player.z = chairData.position[2];
       player.rotationY = chairData.rotation;
       
+      // Ensure values are properly initialized as numbers
+      if (isNaN(player.x)) player.x = 0;
+      if (isNaN(player.y)) player.y = 0;
+      if (isNaN(player.z)) player.z = 0;
+      if (isNaN(player.rotationY)) player.rotationY = 0;
+      
       // Mark this chair as occupied
       this.state.occupiedChairs[chairIndex] = true;
-      console.log(`Player ${client.sessionId} assigned to chair ${chairIndex} (P${player.playerNumber})`);
+      console.log(`Player ${client.sessionId} assigned to chair ${chairIndex} (P${player.playerNumber}) at position: [${player.x}, ${player.y}, ${player.z}]`);
     } else {
       // No chairs available, place the player in a default position
       // Try to find a position not on top of the table or other players
@@ -177,8 +215,17 @@ class GameRoom extends Room {
       player.y = 0;
       player.z = 3 * (Math.random() - 0.5);
       player.rotationY = Math.random() * Math.PI * 2; // Random rotation
-      console.log(`No chairs available for player ${client.sessionId} (P${player.playerNumber}). Using random position.`);
+      console.log(`No chairs available for player ${client.sessionId} (P${player.playerNumber}). Using random position: [${player.x}, ${player.y}, ${player.z}]`);
     }
+    
+    // Log complete player state for debugging
+    console.log(`Player state for ${client.sessionId}:`, {
+      position: [player.x, player.y, player.z],
+      rotation: player.rotationY,
+      playerNumber: player.playerNumber,
+      isHost: player.isHost,
+      chairIndex: player.chairIndex
+    });
     
     // Log final chair assignments
     console.log(`Chair occupancy after assignment: ${JSON.stringify(this.state.occupiedChairs)}`);
@@ -283,21 +330,25 @@ class GameRoom extends Room {
     console.log(`Room disposed. Total active rooms: ${activeRooms.size}`);
   }
   
-  // Set a timeout to mark a client as inactive if no messages received
+  // Set timeout to mark player as inactive if no activity
   setClientTimeout(clientId) {
     // Clear any existing timeout
     if (this.clientTimeouts[clientId]) {
       clearTimeout(this.clientTimeouts[clientId]);
     }
     
-    // Set a new timeout - if no activity for 20 seconds, mark as inactive
+    // Set a new timeout - increasing from default to 5 minutes (300000ms)
+    // This prevents players from being marked inactive too quickly
     this.clientTimeouts[clientId] = setTimeout(() => {
+      console.log(`Client ${clientId} marked as inactive due to timeout`);
       const player = this.state.players.get(clientId);
       if (player) {
-        player.connected = false;
-        console.log(`Client ${clientId} marked as inactive due to timeout`);
+        player.connected = false; // Just mark as disconnected but don't remove yet
       }
-    }, 20000);
+      
+      // Don't auto-cleanup inactive players for testing purposes
+      // this.cleanupInactiveClients();
+    }, 300000);
   }
   
   // Refresh client timeout
@@ -369,64 +420,73 @@ class GameRoom extends Room {
   
   // Validate and correct chair occupancy state
   validateChairOccupancy() {
-    // Create a set of chairs that should actually be marked as occupied
-    const shouldBeOccupied = new Set();
+    // Reset occupancy based on actual player data
+    const newOccupancy = [false, false, false, false];
     
-    // Check all connected players to see which chairs they're occupying
-    for (const player of this.state.players.values()) {
-      if (player.connected && player.chairIndex >= 0 && player.chairIndex < this.state.occupiedChairs.length) {
-        shouldBeOccupied.add(player.chairIndex);
+    // Check each player and mark their chair as occupied
+    this.state.players.forEach((player, sessionId) => {
+      if (player.chairIndex >= 0 && player.chairIndex < 4 && player.connected) {
+        newOccupancy[player.chairIndex] = true;
       }
+    });
+    
+    // Update the occupancy state
+    for (let i = 0; i < 4; i++) {
+      this.state.occupiedChairs[i] = newOccupancy[i];
     }
     
-    // Update the occupiedChairs array to match reality
-    let fixedAny = false;
-    for (let i = 0; i < this.state.occupiedChairs.length; i++) {
-      const shouldBeMarkedOccupied = shouldBeOccupied.has(i);
-      if (this.state.occupiedChairs[i] !== shouldBeMarkedOccupied) {
-        console.log(`Fixing chair ${i} occupancy. Was: ${this.state.occupiedChairs[i]}, Should be: ${shouldBeMarkedOccupied}`);
-        this.state.occupiedChairs[i] = shouldBeMarkedOccupied;
-        fixedAny = true;
-      }
-    }
-    
-    if (fixedAny) {
-      console.log(`Updated chair occupancy state: ${JSON.stringify(this.state.occupiedChairs)}`);
-    }
+    console.log(`Chair occupancy validated: ${JSON.stringify(this.state.occupiedChairs)}`);
   }
   
-  // Clean up inactive clients
+  // Cleanup function to remove inactive clients periodically
   cleanupInactiveClients() {
-    const now = Date.now();
-    const inactivityThreshold = 30000; // 30 seconds
-    let removeCount = 0;
-    
-    for (const [clientId, player] of this.state.players.entries()) {
-      if (!player.connected && (now - player.lastActive) > inactivityThreshold) {
-        // Remove players that have been disconnected for more than 30 seconds
-        console.log(`Cleaning up inactive client ${clientId}`);
+    try {
+      console.log("Running cleanup of inactive clients...");
+      
+      // Temporary disable for testing - just log instead of removing
+      const inactiveClients = [];
+      
+      this.state.players.forEach((player, sessionId) => {
+        // Check last activity time
+        const now = Date.now();
+        const inactiveTime = now - player.lastActive;
         
-        // Free up their chair
-        if (player.chairIndex >= 0 && player.chairIndex < this.state.occupiedChairs.length) {
+        // If player hasn't been active for over 5 minutes, consider inactive
+        if (inactiveTime > 300000 && player.connected === false) {
+          console.log(`Player ${sessionId} inactive for ${Math.floor(inactiveTime / 1000)} seconds`);
+          inactiveClients.push(sessionId);
+        }
+      });
+      
+      // Just log how many would be cleaned up, but don't actually do it for testing
+      if (inactiveClients.length > 0) {
+        console.log(`Found ${inactiveClients.length} inactive clients that would be cleaned up`);
+      }
+      
+      // Disabled for testing
+      /*
+      // Cleanup inactive clients
+      let cleanedUp = 0;
+      inactiveClients.forEach(sessionId => {
+        // Get the player's chair index before removal
+        const player = this.state.players.get(sessionId);
+        if (player && player.chairIndex >= 0 && player.chairIndex < this.state.occupiedChairs.length) {
+          // Mark the chair as available
           this.state.occupiedChairs[player.chairIndex] = false;
           console.log(`Chair ${player.chairIndex} is now available after cleanup`);
         }
         
-        // Remove from players list
-        this.state.players.delete(clientId);
-        
-        // Clear any timeout
-        if (this.clientTimeouts[clientId]) {
-          clearTimeout(this.clientTimeouts[clientId]);
-          delete this.clientTimeouts[clientId];
-        }
-        
-        removeCount++;
+        this.state.players.delete(sessionId);
+        cleanedUp++;
+      });
+      
+      if (cleanedUp > 0) {
+        console.log(`Cleaned up ${cleanedUp} inactive clients`);
       }
-    }
-    
-    if (removeCount > 0) {
-      console.log(`Cleaned up ${removeCount} inactive clients`);
+      */
+      
+    } catch (error) {
+      console.error("Error in cleanupInactiveClients:", error);
     }
   }
   
