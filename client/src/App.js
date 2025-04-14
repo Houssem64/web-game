@@ -62,9 +62,46 @@ function App() {
         console.log('Clicked on element:', clickable);
       }
     };
+
+    // Create hover effect for crosshair
+    const handleHover = () => {
+      // Find elements at the center of the screen
+      const elements = document.elementsFromPoint(
+        window.innerWidth / 2,
+        window.innerHeight / 2
+      );
+      
+      // Remove any existing hover effects from all interactive elements
+      document.querySelectorAll('.crosshair-hover').forEach(el => {
+        el.classList.remove('crosshair-hover');
+      });
+      
+      // Find interactive elements
+      const interactive = elements.find(el => {
+        return el.tagName === 'BUTTON' || 
+               el.onclick || 
+               el.classList.contains('answer-button');
+      });
+      
+      // Apply hover effect
+      if (interactive) {
+        interactive.classList.add('crosshair-hover');
+      }
+    };
+
+    // Set up continuous hover checking
+    const hoverInterval = setInterval(handleHover, 100); // Check every 100ms
     
     window.addEventListener('click', handleClick);
-    return () => window.removeEventListener('click', handleClick);
+    
+    return () => {
+      window.removeEventListener('click', handleClick);
+      clearInterval(hoverInterval);
+      // Clean up any remaining hover effects
+      document.querySelectorAll('.crosshair-hover').forEach(el => {
+        el.classList.remove('crosshair-hover');
+      });
+    };
   }, [showMenu]);
   
   // Track chair occupancy based on player positions
@@ -93,6 +130,19 @@ function App() {
     setChairOccupancy(newOccupancy);
     setChairPlayerNumbers(newPlayerNumbers);
   }, [players]);
+
+  // Add cursor hiding when the game is active
+  useEffect(() => {
+    if (showMenu) {
+      document.body.classList.remove('cursor-hidden');
+    } else {
+      document.body.classList.add('cursor-hidden');
+    }
+    
+    return () => {
+      document.body.classList.remove('cursor-hidden');
+    };
+  }, [showMenu]);
 
   // Handle starting the game from the menu
   const handleStartGame = () => {

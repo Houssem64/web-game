@@ -140,6 +140,8 @@
   cursor: pointer;
   transition: all 0.2s ease;
   font-size: 110%;
+  position: relative;
+  transition: all 0.15s ease-in-out;
 }
 
 .answer-button:disabled {
@@ -227,4 +229,19 @@
 .answer-button-d.selected {
   background-color: #ff8f00;
   font-weight: bold;
+}
+
+/* Crosshair interaction styles */
+.crosshair-hover {
+  outline: 2px solid white !important;
+  outline-offset: 2px;
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.7) !important;
+  position: relative;
+  z-index: 10;
+  transition: all 0.1s ease-in-out !important;
+}
+
+/* Custom cursor styles when using the crosshair */
+.cursor-hidden {
+  cursor: none;
 } 
