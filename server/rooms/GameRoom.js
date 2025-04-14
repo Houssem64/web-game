@@ -671,16 +671,24 @@ class GameRoom extends Room {
     
     // Update game state
     this.state.gameStarted = true;
-    this.gamePhase = "quiz";
-    this.state.gamePhase = "quiz";
+    // Start with announcement phase instead of going straight to quiz
+    this.gamePhase = "announcement";
+    this.state.gamePhase = "announcement";
     
-    // Start the first round
-    this.startNextRound();
+    // Notify all clients about the game announcement phase
+    this.broadcast("game_announcement", {
+      message: "Welcome to the game! Get ready for the first question.",
+      duration: 10 // 10 seconds announcement
+    });
     
-    // Notify all clients that the game has started
-    this.broadcast("game_started");
+    console.log("Game started with announcement phase!");
     
-    console.log("Game started!");
+    // After announcement period, transition to quiz phase and start first round
+    this.clock.setTimeout(() => {
+      this.gamePhase = "quiz";
+      this.state.gamePhase = "quiz";
+      this.startNextRound();
+    }, 10000); // 10 seconds announcement
   }
   
   startNextRound() {

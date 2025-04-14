@@ -196,29 +196,92 @@ function App() {
                     />
                     
                     {/* Screen displays on the table for each player */}
-                    {chairOccupancy[0] && (
+                    {/* Current player's screen */}
+                    {playerChairIndex === 0 && chairOccupancy[0] && (
                       <QuizDisplay 
                         position={[0, 0.81, 0.73]} 
                         rotation={[0, Math.PI, 0]} 
                       />
                     )}
-                    {chairOccupancy[1] && (
+                    {playerChairIndex === 1 && chairOccupancy[1] && (
                       <QuizDisplay 
                         position={[0, 0.81, -0.73]} 
                         rotation={[0, 0, 0]} 
                       />
                     )}
-                    {chairOccupancy[2] && (
+                    {playerChairIndex === 2 && chairOccupancy[2] && (
                       <QuizDisplay 
                         position={[0.73, 0.81, 0]} 
                         rotation={[0, Math.PI * 1.5, 0]} 
                       />
                     )}
-                    {chairOccupancy[3] && (
+                    {playerChairIndex === 3 && chairOccupancy[3] && (
                       <QuizDisplay 
                         position={[-0.73, 0.81, 0]} 
                         rotation={[0, Math.PI * 0.5, 0]} 
                       />
+                    )}
+                    
+                    {/* Placeholder displays for other players' screens */}
+                    {playerChairIndex !== 0 && chairOccupancy[0] && (
+                      <mesh 
+                        position={[0, 0.81, 0.73]} 
+                        rotation={[0.3, Math.PI, 0]}
+                        castShadow 
+                        receiveShadow
+                      >
+                        <boxGeometry args={[0.5, 0.32, 0.02]} />
+                        <meshStandardMaterial color="#111111" />
+                        <mesh position={[0, 0, 0.005]}>
+                          <boxGeometry args={[0.46, 0.28, 0.001]} />
+                          <meshStandardMaterial color="#222244" emissive={new THREE.Color(0x3366cc)} emissiveIntensity={0.2} />
+                        </mesh>
+                      </mesh>
+                    )}
+                    {playerChairIndex !== 1 && chairOccupancy[1] && (
+                      <mesh 
+                        position={[0, 0.81, -0.73]} 
+                        rotation={[0.3, 0, 0]}
+                        castShadow 
+                        receiveShadow
+                      >
+                        <boxGeometry args={[0.5, 0.32, 0.02]} />
+                        <meshStandardMaterial color="#111111" />
+                        <mesh position={[0, 0, 0.005]}>
+                          <boxGeometry args={[0.46, 0.28, 0.001]} />
+                          <meshStandardMaterial color="#222244" emissive={new THREE.Color(0x3366cc)} emissiveIntensity={0.2} />
+                        </mesh>
+                      </mesh>
+                    )}
+                    {playerChairIndex !== 2 && chairOccupancy[2] && (
+                      <mesh 
+                        position={[0.73, 0.81, 0]} 
+                        rotation={[0.3, Math.PI * 1.5, 0]}
+                        castShadow 
+                        receiveShadow
+                      >
+                        <boxGeometry args={[0.5, 0.32, 0.02]} />
+                        <meshStandardMaterial color="#111111" />
+                        <mesh position={[0, 0, 0.005]}>
+                          <boxGeometry args={[0.46, 0.28, 0.001]} />
+                          <meshStandardMaterial color="#222244" emissive={new THREE.Color(0x3366cc)} emissiveIntensity={0.2} />
+                        </mesh>
+                      </mesh>
+                    )}
+                    {playerChairIndex !== 3 && chairOccupancy[3] && (
+                      <mesh 
+                        position={[-0.73, 0.81, 0]} 
+                        rotation={[0.3, Math.PI * 0.5, 0]}
+                        castShadow 
+                        receiveShadow
+                      >
+                        <boxGeometry args={[0.5, 0.32, 0.02]} />
+                        <meshStandardMaterial color="#111111" />
+                        <mesh position={[0, 0, 0.005]}>
+                          <boxGeometry args={[0.46, 0.28, 0.001]} />
+                          <meshStandardMaterial color="#222244" emissive={new THREE.Color(0x3366cc)} emissiveIntensity={0.2} />
+                        </mesh>
+                      </mesh>
                     )}
                   </>
                 );

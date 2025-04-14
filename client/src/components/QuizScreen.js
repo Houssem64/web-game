@@ -31,6 +31,17 @@ const styles = {
     fontSize: '120%',
     fontWeight: 'bold'
   },
+  announcementContainer: {
+    padding: '20px',
+    backgroundColor: 'rgba(0, 40, 100, 0.3)',
+    borderRadius: '8px',
+    marginBottom: '15px',
+    fontSize: '140%',
+    fontWeight: 'bold',
+    textAlign: 'center',
+    color: '#ffdd33',
+    textShadow: '0 0 10px rgba(255, 255, 100, 0.5)'
+  },
   answersContainer: {
     display: 'grid',
     gridTemplateColumns: '1fr 1fr',
@@ -48,6 +59,7 @@ const styles = {
 const QuizScreen = () => {
   const { room } = useConnection();
   const [timeLeft, setTimeLeft] = useState(0);
+  const [announcementTime, setAnnouncementTime] = useState(0);
   const [answered, setAnswered] = useState(false);
   const [selectedAnswer, setSelectedAnswer] = useState(null);
   const [resultsVisible, setResultsVisible] = useState(false);
@@ -67,18 +79,47 @@ const QuizScreen = () => {
   const timeRemaining = useGameStore(state => state.timeRemaining);
   const scores = useGameStore(state => state.scores);
   const eliminatedPlayers = useGameStore(state => state.eliminatedPlayers);
+  const announcementMessage = useGameStore(state => state.announcementMessage);
+  const announcementDuration = useGameStore(state => state.announcementDuration);
   
   // Store actions
   const setTimeRemaining = useGameStore(state => state.setTimeRemaining);
+  const setGamePhase = useGameStore(state => state.setGamePhase);
+  const setAnnouncement = useGameStore(state => state.setAnnouncement);
 
   // Update local time from server
   useEffect(() => {
     setTimeLeft(timeRemaining);
   }, [timeRemaining]);
 
+  // Update local announcement time from store
+  useEffect(() => {
+    setAnnouncementTime(announcementDuration);
+  }, [announcementDuration]);
+
   // Setup room event listeners
   useEffect(() => {
     if (!room) return;
+
+    // Listen for game announcement
+    const onGameAnnouncement = (data) => {
+      // Update the store with announcement data
+      setAnnouncement(data.message, data.duration);
+      setGamePhase("announcement");
+      
+      // Start countdown for announcement
+      let timeLeft = data.duration;
+      const countdownInterval = setInterval(() => {
+        timeLeft--;
+        setAnnouncementTime(timeLeft);
+        
+        if (timeLeft <= 0) {
+          clearInterval(countdownInterval);
+        }
+      }, 1000);
+      
+      return () => clearInterval(countdownInterval);
+    };
 
     // Listen for new questions
     const onNewQuestion = (data) => {
@@ -119,6 +160,7 @@ const QuizScreen = () => {
     };
 
     // Register event handlers
+    room.onMessage("game_announcement", onGameAnnouncement);
     room.onMessage("new_question", onNewQuestion);
     room.onMessage("round_results", onRoundResults);
     room.onMessage("player_eliminated", onPlayerEliminated);
@@ -126,16 +168,17 @@ const QuizScreen = () => {
 
     // Cleanup
     return () => {
+      room.removeAllListeners("game_announcement");
       room.removeAllListeners("new_question");
       room.removeAllListeners("round_results");
       room.removeAllListeners("player_eliminated");
       room.removeAllListeners("game_over");
     };
-  }, [room]);
+  }, [room, setGamePhase, setAnnouncement]);
 
   // Handle answer selection
   const handleAnswer = (answerIndex) => {
-    if (answered || !room) return;
+    if (answered || !room || gamePhase !== "quiz") return;
     
     setSelectedAnswer(answerIndex);
     setAnswered(true);
@@ -144,33 +187,51 @@ const QuizScreen = () => {
     room.send("submit_answer", { answer: answerIndex });
   };
 
+  // Create empty placeholder options for announcement phase
+  const placeholderOptions = ["", "", "", ""];
+
   // Render different game phases
   if (gamePhase === "waiting") {
     return (
       <div className="quiz-screen waiting" style={styles.quizScreen}>
-        <h2 style={{ fontSize: '130%', textAlign: 'center', marginTop: '20px' }}>Waiting for the host to start the game...</h2>
+        <h2 style={{ fontSize: '130%', textAlign: 'center', marginTop: '20px' }}>
+          Players are getting ready...
+        </h2>
+        <p style={{ textAlign: 'center', color: '#d1d5db' }}>
+          Once everyone is ready, the host can start the game from the menu.
+        </p>
+      </div>
+    );
+  }
+
+  // Announcement phase (just before quiz starts)
+  if (gamePhase === "announcement") {
+    return (
+      <div className="quiz-screen announcement" style={styles.quizScreen}>
+        <div className="quiz-header" style={styles.quizHeader}>
+          <div className="round-info">
+            <span className="round-number" style={{ fontWeight: 'bold' }}>Get Ready!</span>
+            <span className="time-remaining" style={{ marginLeft: '15px' }}>Starting in: {announcementTime}s</span>
+          </div>
+        </div>
         
-        {/* Only show start button for the host */}
-        {players[currentPlayerId]?.isHost && (
-          <button 
-            className="start-button"
-            style={{
-              padding: '12px 24px',
-              backgroundColor: '#4CAF50',
-              color: 'white',
-              border: 'none',
-              borderRadius: '8px',
-              cursor: 'pointer',
-              fontSize: '120%',
-              fontWeight: 'bold',
-              margin: '0 auto',
-              display: 'block'
-            }}
-            onClick={() => room?.send("start_game")}
-          >
-            Start Game
-          </button>
-        )}
+        <div className="announcement-container" style={styles.announcementContainer}>
+          <h2>{announcementMessage}</h2>
+        </div>
+        
+        {/* Show empty answer buttons during announcement */}
+        <div className="answers-container" style={styles.answersContainer}>
+          {placeholderOptions.map((option, index) => (
+            <AnswerButton
+              key={index}
+              letter={String.fromCharCode(65 + index)} // A, B, C, D
+              text=""
+              selected={false}
+              disabled={true}
+              onClick={() => {}}
+            />
+          ))}
+        </div>
       </div>
     );
   }
@@ -308,10 +369,10 @@ const QuizScreen = () => {
     );
   }
 
-  // Default fallback
+  // Default fallback (should rarely happen)
   return (
-    <div className="quiz-screen loading">
-      <p>Loading quiz...</p>
+    <div className="quiz-screen" style={styles.quizScreen}>
+      <h2 style={{ textAlign: 'center' }}>Getting ready...</h2>
     </div>
   );
 };

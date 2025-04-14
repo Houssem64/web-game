@@ -7,7 +7,7 @@ export const useGameStore = create((set) => ({
   
   // Game state
   gameStarted: false,
-  gamePhase: 'waiting', // waiting, quiz, elimination, finished
+  gamePhase: 'waiting', // waiting, announcement, quiz, elimination, finished
   currentRound: 0,
   totalRounds: 5,
   
@@ -17,6 +17,10 @@ export const useGameStore = create((set) => ({
   answers: {}, // Map of player IDs to their answers
   scores: {}, // Map of player IDs to their scores
   eliminatedPlayers: [], // Array of player IDs that have been eliminated
+  
+  // Announcement state
+  announcementMessage: '',
+  announcementDuration: 0,
   
   // Actions
   setPlayers: (players) => set({ players }),
@@ -49,6 +53,12 @@ export const useGameStore = create((set) => ({
   setCurrentQuestion: (question) => set({ currentQuestion: question }),
   setTimeRemaining: (time) => set({ timeRemaining: time }),
   
+  // Announcement actions
+  setAnnouncement: (message, duration) => set({
+    announcementMessage: message,
+    announcementDuration: duration
+  }),
+  
   // Utility method to update multiple game state properties at once
   updateGameState: (stateUpdates) => set((state) => ({
     ...state,
@@ -78,7 +88,7 @@ export const useGameStore = create((set) => ({
     eliminatedPlayers: [...state.eliminatedPlayers, playerId]
   })),
   
-  // Reset game state
+  // Reset quiz state
   resetQuiz: () => set({
     currentQuestion: null,
     timeRemaining: 0,
@@ -96,6 +106,8 @@ export const useGameStore = create((set) => ({
     timeRemaining: 0,
     answers: {},
     scores: {},
-    eliminatedPlayers: []
+    eliminatedPlayers: [],
+    announcementMessage: '',
+    announcementDuration: 0
   })
 }));

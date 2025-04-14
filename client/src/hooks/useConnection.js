@@ -35,7 +35,8 @@ export const useConnection = () => {
     setCurrentRound,
     setCurrentQuestion,
     setTimeRemaining,
-    updateGameState
+    updateGameState,
+    setAnnouncement
   } = useGameStore();
 
   // Initialize connection to the Colyseus server without joining a room
@@ -249,6 +250,13 @@ export const useConnection = () => {
       // As this is an array we need to copy it
       const eliminatedPlayersArray = [...newValue];
       updateGameState({ eliminatedPlayers: eliminatedPlayersArray });
+    });
+    
+    // Handle specific game events
+    gameRoom.onMessage("game_announcement", (data) => {
+      console.log('Game announcement received:', data);
+      setAnnouncement(data.message, data.duration);
+      setGamePhase("announcement");
     });
     
     // Handle room events
