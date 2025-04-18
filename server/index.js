@@ -88,6 +88,26 @@ app.get('/rooms', (req, res) => {
 // Start the server
 gameServer.listen(port);
 console.log(`Game server started on http://localhost:${port}`);
+console.log(`Server ready for WebSocket connections at ws://localhost:${port}`);
+console.log(`Server monitor available at http://localhost:${port}/colyseus`);
+console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+
+// Log any network interface information that might be helpful
+try {
+  const os = require('os');
+  const networkInterfaces = os.networkInterfaces();
+  console.log('Available network interfaces:');
+  Object.keys(networkInterfaces).forEach(interfaceName => {
+    const interfaces = networkInterfaces[interfaceName];
+    interfaces.forEach(iface => {
+      if (iface.family === 'IPv4') {
+        console.log(`  - ${interfaceName}: ${iface.address}`);
+      }
+    });
+  });
+} catch (err) {
+  console.error('Error getting network interfaces:', err);
+}
 
 // Cleanup function to remove any automatically created rooms on server startup
 const cleanupAutoCreatedRooms = () => {

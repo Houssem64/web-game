@@ -758,7 +758,11 @@ class GameRoom extends Room {
   startCountdown() {
     // Clear any existing interval to prevent duplicates
     if (this.countdownInterval) {
-      this.clock.clearInterval(this.countdownInterval);
+      if (this.clock && typeof this.clock.clearInterval === 'function') {
+  this.clock.clearInterval(this.countdownInterval);
+} else {
+  clearInterval(this.countdownInterval);
+}
     }
     
     // Send time updates to clients every second
@@ -773,12 +777,20 @@ class GameRoom extends Room {
         
         // When time reaches 0, end the round
         if (timeLeft === 0) {
-          this.clock.clearInterval(this.countdownInterval);
+          if (this.clock && typeof this.clock.clearInterval === 'function') {
+  this.clock.clearInterval(this.countdownInterval);
+} else {
+  clearInterval(this.countdownInterval);
+}
           this.endRound();
         }
       } else {
         // Clear the interval if round is no longer in progress
-        this.clock.clearInterval(this.countdownInterval);
+        if (this.clock && typeof this.clock.clearInterval === 'function') {
+  this.clock.clearInterval(this.countdownInterval);
+} else {
+  clearInterval(this.countdownInterval);
+}
       }
     }, 1000);
   }
@@ -800,7 +812,11 @@ class GameRoom extends Room {
       
       // Also clear countdown interval
       if (this.countdownInterval) {
-        this.clock.clearInterval(this.countdownInterval);
+        if (this.clock && typeof this.clock.clearInterval === 'function') {
+  this.clock.clearInterval(this.countdownInterval);
+} else {
+  clearInterval(this.countdownInterval);
+}
       }
       
       this.endRound();
@@ -815,11 +831,20 @@ class GameRoom extends Room {
     
     // Clear any active timers
     if (this.questionTimer) {
-      this.clock.clearTimeout(this.questionTimer);
+      // Use Colyseus clock if available, else fallback to global clearTimeout
+      if (this.clock && typeof this.clock.clearTimeout === 'function') {
+        this.clock.clearTimeout(this.questionTimer);
+      } else {
+        clearTimeout(this.questionTimer);
+      }
     }
     
     if (this.countdownInterval) {
-      this.clock.clearInterval(this.countdownInterval);
+      if (this.clock && typeof this.clock.clearInterval === 'function') {
+  this.clock.clearInterval(this.countdownInterval);
+} else {
+  clearInterval(this.countdownInterval);
+}
     }
     
     // Calculate scores for this round

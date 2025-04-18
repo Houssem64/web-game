@@ -45,7 +45,26 @@ export const useConnection = () => {
       // Create a Colyseus client if it doesn't exist
       if (!clientInstance) {
         console.log('Creating new Colyseus client');
-        clientInstance = new Client('ws://localhost:2567');
+        // Update the server URL to use the current window's hostname
+        // This ensures it works both locally and when deployed
+        const getServerUrl = () => {
+          // Use window location hostname but with the server port
+          const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+          const host = window.location.hostname;
+          // Use the same port as the current URL if in production, otherwise use server port
+          const port = process.env.NODE_ENV === 'production' ? window.location.port : 2567;
+          
+          const serverUrl = port ? `${protocol}//${host}:${port}` : `${protocol}//${host}`;
+          console.log(`Using server URL: ${serverUrl}`);
+          return serverUrl;
+        };
+        
+        // Then in initializeConnection:
+        clientInstance = new Client(getServerUrl(), {
+          reconnect: true,
+          reconnectInterval: 1000,
+          maxReconnectAttempts: 10
+        });
       }
       return clientInstance;
     } catch (err) {
@@ -185,6 +204,7 @@ export const useConnection = () => {
     setRoom(gameRoom);
     setConnectionState(CONNECTION_STATE.CONNECTED);
     hasConnected.current = true;
+    console.log('[Connection] Room joined and connection state set to CONNECTED. Room:', gameRoom.id, 'Session:', gameRoom.sessionId);
       
     // Set the current player ID
     setCurrentPlayerId(gameRoom.sessionId);
@@ -312,24 +332,83 @@ export const useConnection = () => {
     
     // Handle disconnection
     gameRoom.onLeave((code) => {
-      console.log('Left room. Code:', code);
+      console.log('[Connection] Left room. Code:', code);
       setConnectionState(CONNECTION_STATE.DISCONNECTED);
       hasConnected.current = false;
       setRoom(null);
       resetGame();
+      
+      // Clear the roomInstance reference when we leave
+      roomInstance = null;
+      
+      // If the disconnection was unexpected (code >= 1000), attempt to reconnect
+      if (code >= 1000 && code < 4000) {
+        console.log(`[Connection] Unexpected disconnection with code ${code}, attempting to reconnect...`);
+        // Wait a moment before trying to reconnect
+        setTimeout(() => {
+          connect().catch(err => {
+            console.error('[Connection] Reconnection attempt failed:', err);
+          });
+        }, 3000);
+      }
     });
     
-    // Set up a more frequent heartbeat to keep the connection alive
-    // Send heartbeat every 30 seconds to prevent timeouts
-    const heartbeatInterval = setInterval(() => {
-      if (gameRoom.connection.isOpen) {
-        console.log('Sending heartbeat to server...');
-        gameRoom.send('heartbeat', {});
-      } else {
-        console.log('Connection closed, clearing heartbeat interval');
+    // Set up a more robust heartbeat system
+    let heartbeatInterval = null;
+    
+    const startHeartbeat = () => {
+      // Clear any existing interval first
+      if (heartbeatInterval) {
         clearInterval(heartbeatInterval);
       }
-    }, 30000);
+      
+      // Send heartbeat every 15 seconds (reduced from 30s)
+      heartbeatInterval = setInterval(() => {
+        if (gameRoom.connection.isOpen) {
+          console.log('Sending heartbeat to server...');
+          gameRoom.send('heartbeat', {});
+        } else {
+          console.log('Connection closed, clearing heartbeat interval');
+          clearInterval(heartbeatInterval);
+          heartbeatInterval = null;
+          
+          // Update connection state to reflect disconnection
+          setConnectionState(CONNECTION_STATE.DISCONNECTED);
+          
+          // Don't set room to null here - let onLeave handle that
+        }
+      }, 15000);
+    };
+    
+    // Start the heartbeat immediately
+    startHeartbeat();
+    // Listen for low-level connection events (for extra robustness)
+    if (gameRoom.connection) {
+      gameRoom.connection.onopen = () => {
+        console.log('[Connection] WebSocket connection opened.');
+        setConnectionState(CONNECTION_STATE.CONNECTED);
+      };
+      gameRoom.connection.onclose = (event) => {
+        console.log('[Connection] WebSocket closed:', event);
+        setConnectionState(CONNECTION_STATE.DISCONNECTED);
+      };
+      gameRoom.connection.onerror = (event) => {
+        console.error('[Connection] WebSocket error:', event);
+        setConnectionState(CONNECTION_STATE.ERROR);
+      };
+    }
+    
+    // Also set up a connection state change listener
+    gameRoom.onStateChange((state) => {
+      console.log("Room state changed:", state);
+    });
+    
+    // Add error handler
+    gameRoom.onError((err) => {
+      console.error('[Connection] Room connection error:', err);
+      setError(err.message || 'Unknown connection error');
+      setConnectionState(CONNECTION_STATE.ERROR);
+    });
   };
 
   // Clean up function - only leave room when the application is closed

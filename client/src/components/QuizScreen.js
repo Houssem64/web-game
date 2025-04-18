@@ -168,46 +168,6 @@ const QuizScreen = () => {
   }, [announcementDuration]);
 
   // Listen for all_players_ready message to update countdown
-  useEffect(() => {
-    if (!room) return;
-
-    const onAllPlayersReady = (data) => {
-      console.log("All players ready message received:", data);
-      // Could update UI to show players are ready to start
-      setWaitingCountdown(10); // Reset countdown when all players are ready
-    };
-
-    // Register listener
-    room.onMessage("all_players_ready", onAllPlayersReady);
-
-    // Cleanup
-    return () => {
-      room.removeAllListeners("all_players_ready");
-    };
-  }, [room]);
-
-  // Listen for ready status updates
-  useEffect(() => {
-    if (!room) return;
-
-    const onReadyStatusUpdate = (data) => {
-      console.log("Ready status update received:", data);
-      setPlayerReadyStatus(data);
-      
-      // Check if all players are ready
-      const allReady = Object.values(data).every(ready => ready === true);
-      setAllPlayersReady(allReady);
-    };
-
-    // Register listener
-    room.onMessage("ready_status_update", onReadyStatusUpdate);
-
-    // Cleanup
-    return () => {
-      room.removeAllListeners("ready_status_update");
-    };
-  }, [room]);
-
   // Setup room event listeners
   useEffect(() => {
     if (!room) return;
@@ -337,21 +297,10 @@ const QuizScreen = () => {
   // Create empty placeholder options for announcement phase
   const placeholderOptions = ["", "", "", ""];
 
-  // Allow player to mark themselves as ready
-  const toggleReadyStatus = () => {
-    if (!room) return;
-    
-    // Get current player's ready status and toggle it
-    const currentStatus = playerReadyStatus[currentPlayerId] || false;
-    const newStatus = !currentStatus;
-    
-    console.log(`Toggling ready status to: ${newStatus}`);
-    
-    // Send updated status to server
-    room.send("set_ready_status", { ready: newStatus });
-  };
+
 
   // Render different game phases
+  // (Ready-up logic removed. Waiting phase should only show a waiting message or animation)
   if (gamePhase === "waiting") {
     return (
       <div className="quiz-screen waiting" style={styles.quizScreen}>
@@ -361,70 +310,9 @@ const QuizScreen = () => {
           Game will start soon
         </h2>
         
-        {/* Player ready status display */}
-        <div style={{ 
-          margin: '20px auto', 
-          padding: '15px', 
-          backgroundColor: 'rgba(20, 40, 100, 0.7)',
-          borderRadius: '8px',
-          maxWidth: '80%',
-          boxShadow: '0 0 10px rgba(0, 50, 200, 0.5)'
-        }}>
-          <h3 style={{ textAlign: 'center', color: '#ffcc33', marginBottom: '15px' }}>Players Ready</h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            {Object.entries(players).map(([playerId, player]) => (
-              <div key={playerId} style={{ 
-                display: 'flex', 
-                justifyContent: 'space-between',
-                padding: '8px',
-                backgroundColor: playerId === currentPlayerId ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
-                borderRadius: '4px'
-              }}>
-                <span style={{ color: 'white' }}>
-                  Player {player.playerNumber} {playerId === currentPlayerId ? '(You)' : ''}
-                  {player.isHost ? ' (Host)' : ''}
-                </span>
-                <span style={{ 
-                  color: playerReadyStatus[playerId] ? '#4caf50' : '#ff5a5a',
-                  fontWeight: 'bold'
-                }}>
-                  {playerReadyStatus[playerId] ? 'Ready ✓' : 'Not Ready'}
-                </span>
-              </div>
-            ))}
-          </div>
-          
-          {/* Ready button */}
-          <button 
-            onClick={toggleReadyStatus}
-            style={{
-              display: 'block',
-              margin: '20px auto 10px',
-              padding: '12px 24px',
-              backgroundColor: playerReadyStatus[currentPlayerId] ? '#2e7d32' : '#1976d2',
-              color: 'white',
-              border: 'none',
-              borderRadius: '4px',
-              fontSize: '16px',
-              fontWeight: 'bold',
-              cursor: 'pointer',
-              boxShadow: '0 2px 4px rgba(0, 0, 0, 0.3)',
-              transition: 'all 0.2s'
-            }}
-          >
-            {playerReadyStatus[currentPlayerId] ? 'I\'m Ready' : 'Mark as Ready'}
-          </button>
-          
-          {allPlayersReady && (
-            <p style={{ 
-              textAlign: 'center', 
-              color: '#ffcc33', 
-              marginTop: '15px',
-              fontWeight: 'bold'
-            }}>
-              All players are ready! Game starting soon...
-            </p>
-          )}
+        {/* Waiting phase message (ready-up removed) */}
+        <div style={{ textAlign: 'center', margin: '40px 0', color: '#ffcc33', fontSize: '22px' }}>
+          Waiting for the game to start...
         </div>
         
         {/* Show sample answer buttons during waiting phase */}
@@ -630,6 +518,6 @@ const QuizScreen = () => {
       <h2 style={{ textAlign: 'center' }}>Getting ready...</h2>
     </div>
   );
-};
+}
 
-export default QuizScreen; 
+export default QuizScreen;
