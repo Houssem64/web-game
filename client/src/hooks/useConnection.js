@@ -288,9 +288,8 @@ export const useConnection = () => {
     
     // Handle specific game events
     gameRoom.onMessage("game_announcement", (data) => {
-      console.log('Game announcement received:', data);
-      setAnnouncement(data.message, data.duration);
-      setGamePhase("announcement");
+      console.log('Game announcement received - ignoring since announcement phase was removed');
+      // No longer update announcement or phase - the game will go directly to quiz
     });
     
     // Handle new questions
@@ -304,7 +303,7 @@ export const useConnection = () => {
           correctAnswer: data.correctAnswer || 0
         };
         
-        // Update game phase first to ensure UI updates
+        // Update game phase to quiz directly
         setGamePhase("quiz");
         
         // Then update the question

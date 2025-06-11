@@ -7,7 +7,7 @@ export const useGameStore = create((set) => ({
   
   // Game state
   gameStarted: false,
-  gamePhase: 'waiting', // waiting, announcement, quiz, elimination, finished
+  gamePhase: 'quiz', // Changed default from 'waiting' to 'quiz'
   currentRound: 0,
   totalRounds: 5,
   
@@ -100,7 +100,7 @@ export const useGameStore = create((set) => ({
     players: {},
     currentPlayerId: null,
     gameStarted: false,
-    gamePhase: 'waiting',
+    gamePhase: 'quiz',
     currentRound: 0,
     currentQuestion: null,
     timeRemaining: 0,

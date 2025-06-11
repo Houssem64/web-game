@@ -264,7 +264,32 @@ const QuizScreen = () => {
     }
     
     if (!room) {
-      console.log("No room connection, cannot submit answer");
+      console.log("No room connection, reconnecting and then submitting answer");
+      // Try to use existing connection rather than failing
+      const { room: currentRoom } = useConnection();
+      
+      if (currentRoom) {
+        // If we found a valid room connection, use it
+        try {
+          currentRoom.send("submit_answer", { answer: answerIndex });
+          console.log("Answer sent to server using current room connection");
+          
+          // Set local UI state
+          setSelectedAnswer(answerIndex);
+          setAnswered(true);
+          
+          // Record time taken from question start to answer
+          const timeSpent = Math.max(0, 20 - timeLeft);
+          
+          // Store answer in game store
+          submitAnswer(currentPlayerId, answerIndex, timeSpent);
+          return;
+        } catch (error) {
+          console.error("Error using current room connection:", error);
+        }
+      }
+      
+      console.log("Could not find valid room connection, answer not submitted");
       return;
     }
     
@@ -297,76 +322,8 @@ const QuizScreen = () => {
   // Create empty placeholder options for announcement phase
   const placeholderOptions = ["", "", "", ""];
 
-
-
-  // Render different game phases
-  // (Ready-up logic removed. Waiting phase should only show a waiting message or animation)
-  if (gamePhase === "waiting") {
-    return (
-      <div className="quiz-screen waiting" style={styles.quizScreen}>
-        <div style={styles.gameTitle}>WHO WANTS TO BE A MILLIONAIRE</div>
-        
-        <h2 style={{ fontSize: '24px', textAlign: 'center', marginTop: '10px', color: '#8af' }}>
-          Game will start soon
-        </h2>
-        
-        {/* Waiting phase message (ready-up removed) */}
-        <div style={{ textAlign: 'center', margin: '40px 0', color: '#ffcc33', fontSize: '22px' }}>
-          Waiting for the game to start...
-        </div>
-        
-        {/* Show sample answer buttons during waiting phase */}
-        <div className="answers-container" style={{...styles.answersContainer, marginTop: '50px'}}>
-          {["Berlin", "Paris", "London", "Madrid"].map((option, index) => (
-            <AnswerButton
-              key={index}
-              letter={String.fromCharCode(65 + index)} // A, B, C, D
-              text={option}
-              selected={false}
-              disabled={true}
-              onClick={() => {}}
-            />
-          ))}
-        </div>
-      </div>
-    );
-  }
-
-  // Announcement phase (just before quiz starts)
-  if (gamePhase === "announcement") {
-    return (
-      <div className="quiz-screen announcement" style={styles.quizScreen}>
-        <div style={styles.gameTitle}>WHO WANTS TO BE A MILLIONAIRE</div>
-        
-        <div className="quiz-header" style={styles.quizHeader}>
-          <div className="round-info">
-            <span className="round-number" style={{ fontWeight: 'bold', color: '#ffcc33' }}>Get Ready!</span>
-            <span className="time-remaining" style={{ marginLeft: '15px', color: '#99ccff' }}>Starting in: {announcementTime}s</span>
-          </div>
-        </div>
-        
-        <div className="announcement-container" style={styles.announcementContainer}>
-          <h2>{announcementMessage || "The game is about to begin!"}</h2>
-        </div>
-        
-        {/* Show empty answer buttons during announcement */}
-        <div className="answers-container" style={styles.answersContainer}>
-          {placeholderOptions.map((option, index) => (
-            <AnswerButton
-              key={index}
-              letter={String.fromCharCode(65 + index)} // A, B, C, D
-              text={`Option ${String.fromCharCode(65 + index)}`}
-              selected={false}
-              disabled={true}
-              onClick={() => {}}
-            />
-          ))}
-        </div>
-      </div>
-    );
-  }
-
-  if (gamePhase === "quiz") {
+  // Render different game phases - simplified to focus on quiz
+  if (gamePhase === "quiz" || gamePhase === "waiting" || gamePhase === "announcement") {
     return (
       <div className="quiz-screen active" style={styles.quizScreen}>
         <div style={styles.gameTitle}>WHO WANTS TO BE A MILLIONAIRE</div>
@@ -417,33 +374,98 @@ const QuizScreen = () => {
             <span className="round-number" style={{ fontWeight: 'bold', color: '#ffcc33' }}>Round {currentRound || 1}</span>
             <span className="time-remaining" style={{ marginLeft: '15px', color: timeLeft < 5 ? '#ff6666' : '#99ccff' }}>Time: {timeLeft || 20}s</span>
           </div>
-        </div>
-        
-        <div className="question-container" style={styles.questionContainer}>
-          <h2 className="question-text">{currentQuestion?.question || "Loading question..."}</h2>
-        </div>
-        
-        <div 
-          className="answers-container" 
-          style={{
-            ...styles.answersContainer,
-            pointerEvents: 'auto' // Ensure clicks are allowed
-          }}
-        >
-          {(currentQuestion?.options || ["A", "B", "C", "D"]).map((option, index) => (
-            <AnswerButton
-              key={index}
-              letter={String.fromCharCode(65 + index)} // A, B, C, D
-              text={option || `Option ${index + 1}`}
-              selected={selectedAnswer === index}
-              disabled={answered}
+          
+          {/* Add start game button for host if in waiting phase */}
+          {(gamePhase === "waiting" || !currentQuestion) && players[currentPlayerId]?.isHost && (
+            <button 
               onClick={() => {
-                console.log(`Option ${index} clicked directly`);
-                handleAnswer(index);
+                console.log("Host clicked Start Game button");
+                if (room) {
+                  room.send("start_game", {});
+                }
               }}
-            />
-          ))}
+              style={{
+                padding: '10px 20px',
+                fontSize: '18px',
+                backgroundColor: '#4466cc',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                boxShadow: '0 0 10px rgba(50, 100, 255, 0.5)'
+              }}
+            >
+              Start Game
+            </button>
+          )}
         </div>
+        
+        {currentQuestion ? (
+          <>
+            <div className="question-container" style={styles.questionContainer}>
+              <h2 className="question-text">
+                {currentQuestion.question && currentQuestion.question !== "Question not provided" 
+                  ? currentQuestion.question 
+                  : "Waiting for question..."}
+              </h2>
+            </div>
+            
+            <div 
+              className="answers-container" 
+              style={{
+                ...styles.answersContainer,
+                pointerEvents: 'auto' // Ensure clicks are allowed
+              }}
+            >
+              {(currentQuestion.options && currentQuestion.options.length > 0)
+                ? currentQuestion.options.map((option, index) => (
+                    <AnswerButton
+                      key={index}
+                      letter={String.fromCharCode(65 + index)} // A, B, C, D
+                      text={option || `Option ${index + 1}`}
+                      selected={selectedAnswer === index}
+                      disabled={answered}
+                      onClick={() => {
+                        console.log(`Option ${index} clicked directly`);
+                        handleAnswer(index);
+                      }}
+                    />
+                  ))
+                : ["A", "B", "C", "D"].map((letter, index) => (
+                    <AnswerButton
+                      key={index}
+                      letter={letter}
+                      text={`Option ${letter}`}
+                      selected={false}
+                      disabled={true}
+                      onClick={() => {}}
+                    />
+                  ))
+              }
+            </div>
+          </>
+        ) : (
+          <>
+            {/* Display when no question is available yet */}
+            <div style={{ textAlign: 'center', margin: '40px 0', color: '#ffcc33', fontSize: '22px' }}>
+              Waiting for the game to start...
+            </div>
+            
+            {/* Show sample answer buttons during waiting */}
+            <div className="answers-container" style={{...styles.answersContainer, marginTop: '50px'}}>
+              {["Berlin", "Paris", "London", "Madrid"].map((option, index) => (
+                <AnswerButton
+                  key={index}
+                  letter={String.fromCharCode(65 + index)} // A, B, C, D
+                  text={option}
+                  selected={false}
+                  disabled={true}
+                  onClick={() => {}}
+                />
+              ))}
+            </div>
+          </>
+        )}
         
         {answered && (
           <div className="waiting-message" style={styles.waitingMessage}>
@@ -454,6 +476,7 @@ const QuizScreen = () => {
     );
   }
 
+  // Keep the elimination phase as is
   if (gamePhase === "elimination") {
     return (
       <div className="quiz-screen elimination" style={styles.quizScreen}>
@@ -487,6 +510,7 @@ const QuizScreen = () => {
     );
   }
 
+  // Keep the finished phase as is
   if (gamePhase === "finished") {
     return (
       <div className="quiz-screen game-over" style={styles.quizScreen}>
@@ -512,10 +536,37 @@ const QuizScreen = () => {
     );
   }
 
-  // Default fallback (should rarely happen)
+  // Default fallback
   return (
     <div className="quiz-screen" style={styles.quizScreen}>
+      <div style={styles.gameTitle}>WHO WANTS TO BE A MILLIONAIRE</div>
       <h2 style={{ textAlign: 'center' }}>Getting ready...</h2>
+      
+      {/* Add start game button for host */}
+      {players[currentPlayerId]?.isHost && (
+        <div style={{ textAlign: 'center', margin: '20px 0' }}>
+          <button 
+            onClick={() => {
+              console.log("Host clicked Start Game button");
+              if (room) {
+                room.send("start_game", {});
+              }
+            }}
+            style={{
+              padding: '10px 20px',
+              fontSize: '18px',
+              backgroundColor: '#4466cc',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              boxShadow: '0 0 10px rgba(50, 100, 255, 0.5)'
+            }}
+          >
+            Start Game
+          </button>
+        </div>
+      )}
     </div>
   );
 }

@@ -85,6 +85,33 @@ app.get('/rooms', (req, res) => {
   }
 });
 
+// Debug endpoint to manually start the game (for testing)
+app.get('/debug/start-game/:roomId', (req, res) => {
+  try {
+    const roomId = req.params.roomId;
+    console.log(`Attempting to manually start game in room: ${roomId}`);
+    
+    // Find the room instance
+    const room = gameServer.matchMaker.rooms.find(r => r.roomId === roomId);
+    
+    if (!room) {
+      return res.status(404).json({ error: `Room ${roomId} not found` });
+    }
+    
+    // Manually call the startGame method
+    if (typeof room.startGame === 'function') {
+      console.log("Manually starting game...");
+      room.startGame();
+      return res.json({ success: true, message: `Game started in room ${roomId}` });
+    } else {
+      return res.status(500).json({ error: "Room instance doesn't have startGame method" });
+    }
+  } catch (error) {
+    console.error("Error starting game:", error);
+    res.status(500).json({ error: "Failed to start game" });
+  }
+});
+
 // Start the server
 gameServer.listen(port);
 console.log(`Game server started on http://localhost:${port}`);

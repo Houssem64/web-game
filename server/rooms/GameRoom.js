@@ -50,6 +50,13 @@ class GameState extends Schema {
     // Track which chairs are occupied (indexed 0-3)
     // Initialize as an ArraySchema for proper synchronization
     this.occupiedChairs = new ArraySchema(false, false, false, false);
+    
+    // Game state
+    this.gamePhase = "waiting"; // waiting, announcement, quiz, elimination, finished
+    this.gameStarted = false;
+    this.currentRound = 0;
+    this.timeRemaining = 0;
+    this.currentQuestion = null;
   }
 }
 
@@ -61,7 +68,12 @@ defineTypes(GameState, {
   createdAt: "number",
   hostId: "string",
   nextPlayerNumber: "number",
-  occupiedChairs: { array: "boolean" }
+  occupiedChairs: { array: "boolean" },
+  gamePhase: "string",
+  gameStarted: "boolean",
+  currentRound: "number",
+  timeRemaining: "number",
+  currentQuestion: "string"
 });
 
 // Chair positions and rotations around the table
@@ -212,9 +224,6 @@ class GameRoom extends Room {
     // Room will be destroyed when empty
     this.autoDispose = true;
     
-    // Run cleanup every 60 seconds
-    this.setSimulationInterval(() => this.cleanupInactiveClients(), 60000);
-    
     // Handle movement messages from clients
     this.onMessage("move", (client, data) => {
       const player = this.state.players.get(client.sessionId);
@@ -233,14 +242,18 @@ class GameRoom extends Room {
       if (player) {
         player.connected = true;
         player.lastActive = Date.now();
-        this.refreshClientTimeout(client.sessionId);
       }
     });
     
     // Room events for clients to listen to
     this.onMessage("start_game", (client) => {
       // Only the host can start the game
+      console.log("Received start_game message from client:", client.sessionId);
       const player = this.state.players.get(client.sessionId);
+      
+      console.log("Player data:", player);
+      console.log("Is host?", player && player.isHost);
+      
       if (player && player.isHost) {
         console.log("Host started the game, broadcasting to all clients");
         // Broadcast to all clients that the game is starting
@@ -249,6 +262,8 @@ class GameRoom extends Room {
         setTimeout(() => {
           this.startGame();
         }, 200);
+      } else {
+        console.log("Non-host player attempted to start the game");
       }
     });
     
@@ -405,9 +420,6 @@ class GameRoom extends Room {
     // Broadcast updated ready status
     this.broadcastReadyStatus();
     
-    // Set timeout to mark player as inactive if no activity
-    this.setClientTimeout(client.sessionId);
-    
     // Send welcome message
     this.broadcast("system_message", {
       message: `Player ${client.sessionId} has joined the room ${this.state.roomId}`
@@ -420,7 +432,7 @@ class GameRoom extends Room {
     try {
       const player = this.state.players.get(client.sessionId);
       
-      // Mark player as disconnected but keep in state temporarily
+      // Mark player as disconnected but keep in state permanently
       if (player) {
         player.connected = false;
         player.lastActive = Date.now();
@@ -433,28 +445,18 @@ class GameRoom extends Room {
           this.assignNewHost();
         }
         
-        // Clear any existing timeout
-        if (this.clientTimeouts[client.sessionId]) {
-          clearTimeout(this.clientTimeouts[client.sessionId]);
-          delete this.clientTimeouts[client.sessionId];
-        }
-        
-        // Allow reconnection for shorter duration (10 seconds)
+        // Allow reconnection indefinitely - never remove the player
         if (consented) {
-          // Player intentionally disconnected - remove immediately
-          console.log(`Client ${client.sessionId} intentionally disconnected`);
-          this.state.players.delete(client.sessionId);
-          
-          // Free up their chair
-          if (chairIndex >= 0 && chairIndex < this.state.occupiedChairs.length) {
-            this.state.occupiedChairs[chairIndex] = false;
-            console.log(`Chair ${chairIndex} is now available`);
-          }
+          // Even if player intentionally disconnected, keep their state
+          console.log(`Client ${client.sessionId} intentionally disconnected, but keeping state`);
+          // Keep the player in state to allow rejoining later
+          // Don't free up their chair - they can come back to the same chair
         } else {
           // Player disconnected due to network issues, allow time to reconnect
           console.log(`Client ${client.sessionId} disconnected. Waiting for reconnection...`);
           try {
-            const reconnection = await this.allowReconnection(client, 10);
+            // Extend reconnection time to 5 minutes (300 seconds)
+            const reconnection = await this.allowReconnection(client, 300);
             console.log(`Client ${client.sessionId} reconnected`);
             
             // Player is back - update the state
@@ -462,29 +464,18 @@ class GameRoom extends Room {
             if (player) {
               player.connected = true;
               player.lastActive = Date.now();
-              this.setClientTimeout(client.sessionId);
             }
           } catch (e) {
-            // Player didn't reconnect in time
-            console.log(`Client ${client.sessionId} didn't reconnect in time, removing player`);
-            this.state.players.delete(client.sessionId);
-            
-            // Free up their chair
-            if (chairIndex >= 0 && chairIndex < this.state.occupiedChairs.length) {
-              this.state.occupiedChairs[chairIndex] = false;
-              console.log(`Chair ${chairIndex} is now available after failed reconnection`);
-            }
+            // Player didn't reconnect in time, but we'll keep their state anyway
+            console.log(`Client ${client.sessionId} didn't reconnect in time, but keeping their state`);
+            // Don't remove the player so they can rejoin later
+            // Don't free up the chair so they can reclaim it
           }
         }
       }
     } catch (e) {
       console.error(`Error in onLeave for ${client.sessionId}:`, e);
-      // Make sure we clean up the player
-      const player = this.state.players.get(client.sessionId);
-      if (player && player.chairIndex >= 0) {
-        this.state.occupiedChairs[player.chairIndex] = false;
-      }
-      this.state.players.delete(client.sessionId);
+      // Even in case of error, don't remove the player
     }
   }
   
@@ -500,32 +491,6 @@ class GameRoom extends Room {
     // Remove from active rooms map
     activeRooms.delete(this.roomId);
     console.log(`Room disposed. Total active rooms: ${activeRooms.size}`);
-  }
-  
-  // Set timeout to mark player as inactive if no activity
-  setClientTimeout(clientId) {
-    // Clear any existing timeout
-    if (this.clientTimeouts[clientId]) {
-      clearTimeout(this.clientTimeouts[clientId]);
-    }
-    
-    // Set a new timeout - increasing from default to 5 minutes (300000ms)
-    // This prevents players from being marked inactive too quickly
-    this.clientTimeouts[clientId] = setTimeout(() => {
-      console.log(`Client ${clientId} marked as inactive due to timeout`);
-      const player = this.state.players.get(clientId);
-      if (player) {
-        player.connected = false; // Just mark as disconnected but don't remove yet
-      }
-      
-      // Don't auto-cleanup inactive players for testing purposes
-      // this.cleanupInactiveClients();
-    }, 300000);
-  }
-  
-  // Refresh client timeout
-  refreshClientTimeout(clientId) {
-    this.setClientTimeout(clientId);
   }
   
   // Assign a new host if the current host leaves
@@ -610,58 +575,6 @@ class GameRoom extends Room {
     console.log(`Chair occupancy validated: ${JSON.stringify(this.state.occupiedChairs)}`);
   }
   
-  // Cleanup function to remove inactive clients periodically
-  cleanupInactiveClients() {
-    try {
-      console.log("Running cleanup of inactive clients...");
-      
-      // Temporary disable for testing - just log instead of removing
-      const inactiveClients = [];
-      
-      this.state.players.forEach((player, sessionId) => {
-        // Check last activity time
-        const now = Date.now();
-        const inactiveTime = now - player.lastActive;
-        
-        // If player hasn't been active for over 5 minutes, consider inactive
-        if (inactiveTime > 300000 && player.connected === false) {
-          console.log(`Player ${sessionId} inactive for ${Math.floor(inactiveTime / 1000)} seconds`);
-          inactiveClients.push(sessionId);
-        }
-      });
-      
-      // Just log how many would be cleaned up, but don't actually do it for testing
-      if (inactiveClients.length > 0) {
-        console.log(`Found ${inactiveClients.length} inactive clients that would be cleaned up`);
-      }
-      
-      // Disabled for testing
-      /*
-      // Cleanup inactive clients
-      let cleanedUp = 0;
-      inactiveClients.forEach(sessionId => {
-        // Get the player's chair index before removal
-        const player = this.state.players.get(sessionId);
-        if (player && player.chairIndex >= 0 && player.chairIndex < this.state.occupiedChairs.length) {
-          // Mark the chair as available
-          this.state.occupiedChairs[player.chairIndex] = false;
-          console.log(`Chair ${player.chairIndex} is now available after cleanup`);
-        }
-        
-        this.state.players.delete(sessionId);
-        cleanedUp++;
-      });
-      
-      if (cleanedUp > 0) {
-        console.log(`Cleaned up ${cleanedUp} inactive clients`);
-      }
-      */
-      
-    } catch (error) {
-      console.error("Error in cleanupInactiveClients:", error);
-    }
-  }
-  
   update(deltaTime) {
     // Game logic update - runs at 60fps
     // Currently empty since the game state is driven by client updates
@@ -669,7 +582,7 @@ class GameRoom extends Room {
   
   // Helper methods for the quiz game
   startGame() {
-    if (this.state.gameStarted) return;
+    console.log("startGame called, current game phase:", this.gamePhase);
     
     // Reset game state
     this.currentRound = 0;
@@ -682,26 +595,15 @@ class GameRoom extends Room {
       this.playerScores[sessionId] = 0;
     });
     
-    // Update game state
+    // Update game state - skip waiting and announcement phases, go directly to quiz
     this.state.gameStarted = true;
-    // Start with announcement phase instead of going straight to quiz
-    this.gamePhase = "announcement";
-    this.state.gamePhase = "announcement";
+    this.gamePhase = "quiz";
+    this.state.gamePhase = "quiz";
     
-    // Notify all clients about the game announcement phase
-    this.broadcast("game_announcement", {
-      message: "Welcome to the game! Get ready for the first question.",
-      duration: 10 // 10 seconds announcement
-    });
+    console.log("Game started directly with quiz phase!");
     
-    console.log("Game started with announcement phase!");
-    
-    // After announcement period, transition to quiz phase and start first round
-    this.clock.setTimeout(() => {
-      this.gamePhase = "quiz";
-      this.state.gamePhase = "quiz";
-      this.startNextRound();
-    }, 10000); // 10 seconds announcement
+    // Start the first round immediately
+    this.startNextRound();
   }
   
   startNextRound() {
@@ -730,7 +632,8 @@ class GameRoom extends Room {
     this.usedQuestions.push(this.currentQuestion);
     
     // Update game state for clients
-    this.state.currentQuestion = this.currentQuestion;
+    // Don't try to store the entire question object in state - just store question text
+    this.state.currentQuestion = this.currentQuestion.question; // Only store the question text in state
     this.state.timeRemaining = QUESTION_TIME;
     
     // Record start time for score calculation
@@ -759,10 +662,10 @@ class GameRoom extends Room {
     // Clear any existing interval to prevent duplicates
     if (this.countdownInterval) {
       if (this.clock && typeof this.clock.clearInterval === 'function') {
-  this.clock.clearInterval(this.countdownInterval);
-} else {
-  clearInterval(this.countdownInterval);
-}
+        this.clock.clearInterval(this.countdownInterval);
+      } else {
+        clearInterval(this.countdownInterval);
+      }
     }
     
     // Send time updates to clients every second
@@ -778,19 +681,19 @@ class GameRoom extends Room {
         // When time reaches 0, end the round
         if (timeLeft === 0) {
           if (this.clock && typeof this.clock.clearInterval === 'function') {
-  this.clock.clearInterval(this.countdownInterval);
-} else {
-  clearInterval(this.countdownInterval);
-}
+            this.clock.clearInterval(this.countdownInterval);
+          } else {
+            clearInterval(this.countdownInterval);
+          }
           this.endRound();
         }
       } else {
         // Clear the interval if round is no longer in progress
         if (this.clock && typeof this.clock.clearInterval === 'function') {
-  this.clock.clearInterval(this.countdownInterval);
-} else {
-  clearInterval(this.countdownInterval);
-}
+          this.clock.clearInterval(this.countdownInterval);
+        } else {
+          clearInterval(this.countdownInterval);
+        }
       }
     }, 1000);
   }
@@ -813,10 +716,10 @@ class GameRoom extends Room {
       // Also clear countdown interval
       if (this.countdownInterval) {
         if (this.clock && typeof this.clock.clearInterval === 'function') {
-  this.clock.clearInterval(this.countdownInterval);
-} else {
-  clearInterval(this.countdownInterval);
-}
+          this.clock.clearInterval(this.countdownInterval);
+        } else {
+          clearInterval(this.countdownInterval);
+        }
       }
       
       this.endRound();
@@ -841,10 +744,10 @@ class GameRoom extends Room {
     
     if (this.countdownInterval) {
       if (this.clock && typeof this.clock.clearInterval === 'function') {
-  this.clock.clearInterval(this.countdownInterval);
-} else {
-  clearInterval(this.countdownInterval);
-}
+        this.clock.clearInterval(this.countdownInterval);
+      } else {
+        clearInterval(this.countdownInterval);
+      }
     }
     
     // Calculate scores for this round
